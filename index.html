@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>我们的爱情故事 💕</title>
+  <link rel="stylesheet" href="index.css">
+</head>
+<body>
+
+  <!-- 浮动背景粒子 -->
+  <div class="particles" id="particles"></div>
+
+  <!-- 顶部导航 -->
+  <nav class="navbar" id="navbar">
+    <div class="nav-inner">
+      <a href="#hero" class="nav-brand">💕 昕昕和林林的爱情故事</a>
+      <button class="nav-toggle" id="navToggle" aria-label="菜单">
+        <span></span><span></span><span></span>
+      </button>
+      <ul class="nav-links" id="navLinks">
+        <li><a href="#hero" data-nav>首页</a></li>
+        <li><a href="#timeline" data-nav>时间线</a></li>
+        <li><a href="#diary" data-nav>日记</a></li>
+        <li><a href="#photos" data-nav>照片墙</a></li>
+        <li><a href="#chat" data-nav>AI 聊天</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Hero 区域 -->
+  <section class="hero" id="hero">
+    <div class="hero-content">
+      <div class="hero-avatars">
+        <div class="avatar avatar-left">👦</div>
+        <div class="heart-beat">💖</div>
+        <div class="avatar avatar-right">👧</div>
+      </div>
+      <h1 class="hero-title">昕昕和林林的爱情故事</h1>
+      <p class="hero-subtitle"></p>
+      <div class="clock" id="clock">
+        <div class="clock-date" id="clockDate"></div>
+        <div class="clock-time" id="clockTime"></div>
+      </div>
+      <div class="hero-days" id="heroDays"></div>
+      <div class="hero-announce" id="heroAnnounce"></div>
+    </div>
+    <div class="hero-floating">
+      <span class="float-heart" style="left:10%;animation-delay:0s">💕</span>
+      <span class="float-heart" style="left:25%;animation-delay:1.5s">🌸</span>
+      <span class="float-heart" style="left:40%;animation-delay:3s">💗</span>
+      <span class="float-heart" style="left:55%;animation-delay:0.8s">✨</span>
+      <span class="float-heart" style="left:70%;animation-delay:2.2s">💖</span>
+      <span class="float-heart" style="left:85%;animation-delay:3.8s">🌸</span>
+    </div>
+  </section>
+
+  <!-- 时间线 -->
+  <section class="section timeline-section" id="timeline">
+    <h2 class="section-title">📅 我们的时间线</h2>
+    <div class="timeline-add">
+      <input type="date" id="tlDate" class="input" placeholder="日期">
+      <input type="text" id="tlTitle" class="input" placeholder="事件标题">
+      <input type="text" id="tlDesc" class="input" placeholder="简短描述（可选）">
+      <button class="btn btn-pink" id="tlAddBtn">➕ 添加纪念日</button>
+    </div>
+    <div class="timeline" id="timelineContainer"></div>
+  </section>
+
+  <!-- 双人日记 -->
+  <section class="section diary-section" id="diary">
+    <h2 class="section-title">📖 我们的日记</h2>
+    <div class="diary-dual">
+      <!-- 他的日记 -->
+      <div class="diary-panel diary-his">
+        <h3 class="diary-name">💙 林林的日记</h3>
+        <div class="diary-lock" id="diaryHisLock">
+          <div class="diary-lock-inner" id="diaryHisLockInner">
+            <div class="diary-lock-icon">🔒</div>
+            <div class="diary-lock-title" id="diaryHisLockTitle">日记已加密</div>
+            <div id="diaryHisPwMode">
+              <input type="password" class="input diary-pwd-input" id="diaryHisPwd" placeholder="密码">
+              <button class="btn btn-blue diary-pwd-btn" data-diary="his">确认</button>
+            </div>
+            <div id="diaryHisSetupMode" style="display:none">
+              <p class="setup-hint">首次使用，请设置日记密码：</p>
+              <input type="password" class="input diary-pwd-input" id="diaryHisNewPwd" placeholder="新密码（至少4位）">
+              <button class="btn btn-blue" id="diaryHisSetPwdBtn">设置密码</button>
+            </div>
+          </div>
+        </div>
+        <div class="diary-content" id="diaryHisContent">
+          <div class="diary-unlocked-bar">🔓 已解锁</div>
+          <div class="diary-form" id="diaryHisForm">
+            <textarea id="diaryHisInput" class="input diary-input" placeholder="今天想说什么..."></textarea>
+            <div class="diary-media-preview" id="diaryHisMediaPreview"></div>
+            <div class="diary-toolbar">
+              <button class="btn btn-sm btn-blue diary-img-btn" data-person="his">📷 图片</button>
+              <button class="btn btn-sm btn-blue diary-audio-btn" data-person="his">🎤 录音</button>
+              <button class="btn btn-sm btn-blue diary-audio-upload-btn" data-person="his">📁 上传音频</button>
+              <input type="file" class="diary-img-input" id="diaryHisImgInput" accept="image/*" hidden>
+              <input type="file" class="diary-audio-input" id="diaryHisAudioInput" accept="audio/*" hidden>
+              <span class="diary-audio-timer" id="diaryHisAudioTimer" style="display:none">⏺️ 00:00</span>
+            </div>
+            <button class="btn btn-blue" id="diaryHisAdd">📝 写下心情</button>
+          </div>
+          <div class="diary-filter">
+            <input type="date" class="input diary-filter-input" id="diaryHisFilter" data-person="his">
+            <button class="btn btn-sm btn-blue diary-filter-clear" data-person="his" style="display:none">✕ 清除</button>
+          </div>
+          <div class="diary-list" id="diaryHisList"></div>
+        </div>
+      </div>
+      <!-- 她的日记 -->
+      <div class="diary-panel diary-her">
+        <h3 class="diary-name">💗 昕昕的日记</h3>
+        <div class="diary-lock" id="diaryHerLock">
+          <div class="diary-lock-inner" id="diaryHerLockInner">
+            <div class="diary-lock-icon">🔒</div>
+            <div class="diary-lock-title" id="diaryHerLockTitle">日记已加密</div>
+            <div id="diaryHerPwMode">
+              <input type="password" class="input diary-pwd-input" id="diaryHerPwd" placeholder="密码">
+              <button class="btn btn-pink diary-pwd-btn" data-diary="her">确认</button>
+            </div>
+            <div id="diaryHerSetupMode" style="display:none">
+              <p class="setup-hint">首次使用，请设置日记密码：</p>
+              <input type="password" class="input diary-pwd-input" id="diaryHerNewPwd" placeholder="新密码（至少4位）">
+              <button class="btn btn-pink" id="diaryHerSetPwdBtn">设置密码</button>
+            </div>
+          </div>
+        </div>
+        <div class="diary-content" id="diaryHerContent">
+          <div class="diary-unlocked-bar">🔓 已解锁</div>
+          <div class="diary-form" id="diaryHerForm">
+            <textarea id="diaryHerInput" class="input diary-input" placeholder="今天想说什么..."></textarea>
+            <div class="diary-media-preview" id="diaryHerMediaPreview"></div>
+            <div class="diary-toolbar">
+              <button class="btn btn-sm btn-pink diary-img-btn" data-person="her">📷 图片</button>
+              <button class="btn btn-sm btn-pink diary-audio-btn" data-person="her">🎤 录音</button>
+              <button class="btn btn-sm btn-pink diary-audio-upload-btn" data-person="her">📁 上传音频</button>
+              <input type="file" class="diary-img-input" id="diaryHerImgInput" accept="image/*" hidden>
+              <input type="file" class="diary-audio-input" id="diaryHerAudioInput" accept="audio/*" hidden>
+              <span class="diary-audio-timer" id="diaryHerAudioTimer" style="display:none">⏺️ 00:00</span>
+            </div>
+            <button class="btn btn-pink" id="diaryHerAdd">📝 写下心情</button>
+          </div>
+          <div class="diary-filter">
+            <input type="date" class="input diary-filter-input" id="diaryHerFilter" data-person="her">
+            <button class="btn btn-sm btn-pink diary-filter-clear" data-person="her" style="display:none">✕ 清除</button>
+          </div>
+          <div class="diary-list" id="diaryHerList"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 照片墙 -->
+  <section class="section photos-section" id="photos">
+    <h2 class="section-title">📷 照片墙</h2>
+    <div class="photo-upload">
+      <label class="btn btn-pink upload-label">
+        📸 上传照片
+        <input type="file" id="photoInput" accept="image/*" multiple hidden>
+      </label>
+    </div>
+    <div class="photo-grid" id="photoGrid"></div>
+  </section>
+
+  <!-- AI 聊天 -->
+  <section class="section chat-section" id="chat">
+    <h2 class="section-title">🤖 AI 小助手</h2>
+    <div class="chat-space-bar" id="chatSpaceBar">
+      <button class="chat-space-btn active" data-space="public">💬 公开</button>
+      <button class="chat-space-btn" data-space="his">👦 林林</button>
+      <button class="chat-space-btn" data-space="her">👧 昕昕</button>
+    </div>
+    <!-- 私密空间密码弹窗 -->
+    <div class="chat-pwd-overlay" id="chatPwdOverlay" style="display:none">
+      <div class="chat-pwd-box">
+        <div class="chat-pwd-icon">🔒</div>
+        <div class="chat-pwd-title" id="chatPwdTitle">请输入密码</div>
+        <input type="password" class="input chat-pwd-input" id="chatPwdInput" placeholder="日记密码">
+        <div class="chat-pwd-actions">
+          <button class="btn btn-pink" id="chatPwdConfirm">确认</button>
+          <button class="btn" id="chatPwdCancel" style="background:#eee">取消</button>
+        </div>
+        <div class="chat-pwd-error" id="chatPwdError" style="display:none">密码错误</div>
+      </div>
+    </div>
+    <div class="chat-container">
+      <div class="chat-sidebar" id="chatSidebar">
+        <button class="btn btn-pink chat-new-btn" id="chatNewBtn">➕ 新对话</button>
+        <div class="chat-history" id="chatHistoryList"></div>
+      </div>
+      <div class="chat-main">
+        <div class="chat-box">
+          <div class="chat-header">
+            <span id="chatTitle">公开聊天</span>
+            <button class="chat-toggle-btn" id="chatToggleBtn">☰</button>
+          </div>
+          <div class="chat-messages" id="chatMessages">
+            <div class="chat-msg bot">你好呀！我是你们的小助手 💕 有什么我可以帮忙的吗？</div>
+          </div>
+          <div class="chat-loading" id="chatLoading" style="display:none">
+            <span class="dot-1">.</span><span class="dot-2">.</span><span class="dot-3">.</span>
+          </div>
+          <div class="chat-input-row">
+            <input type="text" id="chatInput" class="input" placeholder="输入消息...">
+            <button class="btn btn-pink" id="chatSend">发送</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 照片预览弹窗 -->
+  <div class="modal" id="photoModal">
+    <span class="modal-close" id="modalClose">&times;</span>
+    <img class="modal-img" id="modalImg" src="" alt="预览">
+    <button class="btn btn-danger modal-del" id="modalDel">🗑 删除</button>
+  </div>
+
+  <!-- 页脚 -->
+  <footer class="footer">
+    <p>Made with 💖 — 2026 昕昕和林林的爱情故事</p>
+  </footer>
+
+  <script src="index.js"></script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "name": "love-story",
+  "version": "1.0.0",
+  "description": "情侣网站",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "multer": "^2.1.1",
+    "uuid": "^14.0.0"
+  }
+}
