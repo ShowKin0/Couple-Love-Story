@@ -14,7 +14,7 @@
   <!-- 顶部导航 -->
   <nav class="navbar" id="navbar">
     <div class="nav-inner">
-      <a href="#hero" class="nav-brand">💕 昕昕和林林的爱情故事</a>
+      <a href="#hero" class="nav-brand">💕 女生和男生的爱情故事</a>
       <button class="nav-toggle" id="navToggle" aria-label="菜单">
         <span></span><span></span><span></span>
       </button>
@@ -25,6 +25,7 @@
         <li><a href="#photos" data-nav>照片墙</a></li>
         <li><a href="#chat" data-nav>AI 聊天</a></li>
       </ul>
+      <button class="nav-settings" id="navSettingsBtn" aria-label="设置">⚙️</button>
     </div>
   </nav>
 
@@ -36,7 +37,7 @@
         <div class="heart-beat">💖</div>
         <div class="avatar avatar-right">👧</div>
       </div>
-      <h1 class="hero-title">昕昕和林林的爱情故事</h1>
+      <h1 class="hero-title">女生和男生的爱情故事</h1>
       <p class="hero-subtitle"></p>
       <div class="clock" id="clock">
         <div class="clock-date" id="clockDate"></div>
@@ -73,7 +74,7 @@
     <div class="diary-dual">
       <!-- 他的日记 -->
       <div class="diary-panel diary-his">
-        <h3 class="diary-name">💙 林林的日记</h3>
+        <h3 class="diary-name">💙 男生的日记</h3>
         <div class="diary-lock" id="diaryHisLock">
           <div class="diary-lock-inner" id="diaryHisLockInner">
             <div class="diary-lock-icon">🔒</div>
@@ -113,7 +114,7 @@
       </div>
       <!-- 她的日记 -->
       <div class="diary-panel diary-her">
-        <h3 class="diary-name">💗 昕昕的日记</h3>
+        <h3 class="diary-name">💗 女生的日记</h3>
         <div class="diary-lock" id="diaryHerLock">
           <div class="diary-lock-inner" id="diaryHerLockInner">
             <div class="diary-lock-icon">🔒</div>
@@ -171,8 +172,8 @@
     <h2 class="section-title">🤖 AI 小助手</h2>
     <div class="chat-space-bar" id="chatSpaceBar">
       <button class="chat-space-btn active" data-space="public">💬 公开</button>
-      <button class="chat-space-btn" data-space="his">👦 林林</button>
-      <button class="chat-space-btn" data-space="her">👧 昕昕</button>
+      <button class="chat-space-btn" data-space="his">👦 男生</button>
+      <button class="chat-space-btn" data-space="her">👧 女生</button>
     </div>
     <!-- 私密空间密码弹窗 -->
     <div class="chat-pwd-overlay" id="chatPwdOverlay" style="display:none">
@@ -213,6 +214,52 @@
     </div>
   </section>
 
+  <!-- 设置弹窗 -->
+  <div class="settings-overlay" id="settingsOverlay" style="display:none">
+    <div class="settings-box">
+      <div class="settings-title">⚙️ 设置</div>
+
+      <div class="settings-section">
+        <label class="settings-label">👦 男生昵称</label>
+        <input type="text" class="input settings-input" id="settingsHisName" placeholder="男生" maxlength="10">
+      </div>
+
+      <div class="settings-section">
+        <label class="settings-label">👧 女生昵称</label>
+        <input type="text" class="input settings-input" id="settingsHerName" placeholder="女生" maxlength="10">
+      </div>
+
+      <div class="settings-section">
+        <label class="settings-label">男生头像</label>
+        <div class="settings-avatar-box" data-person="his">
+          <div class="settings-avatar-preview" id="settingsHisAvatarPreview">👦</div>
+          <div class="settings-avatar-actions">
+            <button class="btn btn-sm btn-blue settings-avatar-btn">更换</button>
+            <button class="btn btn-sm settings-avatar-reset">默认</button>
+          </div>
+          <input type="file" class="settings-avatar-input" accept="image/*" hidden>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <label class="settings-label">女生头像</label>
+        <div class="settings-avatar-box" data-person="her">
+          <div class="settings-avatar-preview" id="settingsHerAvatarPreview">👧</div>
+          <div class="settings-avatar-actions">
+            <button class="btn btn-sm btn-pink settings-avatar-btn">更换</button>
+            <button class="btn btn-sm settings-avatar-reset">默认</button>
+          </div>
+          <input type="file" class="settings-avatar-input" accept="image/*" hidden>
+        </div>
+      </div>
+
+      <div class="settings-actions">
+        <button class="btn btn-pink" id="settingsSave">💾 保存</button>
+        <button class="btn settings-cancel" id="settingsCancel">取消</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 照片预览弹窗 -->
   <div class="modal" id="photoModal">
     <span class="modal-close" id="modalClose">&times;</span>
@@ -222,7 +269,7 @@
 
   <!-- 页脚 -->
   <footer class="footer">
-    <p>Made with 💖 — 2026 昕昕和林林的爱情故事</p>
+    <p>Made with 💖 — 2026 女生和男生的爱情故事</p>
   </footer>
 
   <script src="index.js"></script>

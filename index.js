@@ -13,6 +13,124 @@ function esc(s) { const d = document.createElement('div'); d.textContent = s; re
 function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 function localTime() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
 
+// ====== 全局设置 ======
+let appSettings = null;
+
+function isImg(v) { return typeof v === 'string' && (v.startsWith('/uploads/') || v.startsWith('data:')); }
+function avaHtml(v) { return isImg(v) ? `<img src="${v}" class="avatar-img">` : v; }
+function avaSm(v) { return isImg(v) ? `<img src="${v}" class="avatar-img-sm">` : v; }
+
+async function loadSettings() {
+  try {
+    const s = await api('GET', '/api/settings');
+    appSettings = s;
+    applySettings(s);
+  } catch {}
+}
+
+function applySettings(s) {
+  const brand = $('.nav-brand');
+  if (brand) brand.textContent = `💕 ${s.herNickname}和${s.hisNickname}的爱情故事`;
+  const title = $('.hero-title');
+  if (title) title.textContent = `${s.herNickname}和${s.hisNickname}的爱情故事`;
+  const hisDiary = $('.diary-his .diary-name');
+  if (hisDiary) hisDiary.textContent = `💙 ${s.hisNickname}的日记`;
+  const herDiary = $('.diary-her .diary-name');
+  if (herDiary) herDiary.textContent = `💗 ${s.herNickname}的日记`;
+  const aLeft = $('.avatar-left');
+  if (aLeft) aLeft.innerHTML = avaHtml(s.hisAvatar);
+  const aRight = $('.avatar-right');
+  if (aRight) aRight.innerHTML = avaHtml(s.herAvatar);
+  const hisBtn = document.querySelector('.chat-space-btn[data-space="his"]');
+  if (hisBtn) hisBtn.innerHTML = `${avaSm(s.hisAvatar)} ${s.hisNickname}`;
+  const herBtn = document.querySelector('.chat-space-btn[data-space="her"]');
+  if (herBtn) herBtn.innerHTML = `${avaSm(s.herAvatar)} ${s.herNickname}`;
+  SPACE_NAMES.his = s.hisNickname;
+  SPACE_NAMES.her = s.herNickname;
+  const footer = document.querySelector('.footer p');
+  if (footer) footer.textContent = `Made with 💖 — 2026 ${s.herNickname}和${s.hisNickname}的爱情故事`;
+}
+
+// ====== 设置弹窗 ======
+function initSettings() {
+  const overlay = $('#settingsOverlay');
+  if (!overlay) return;
+
+  // 头像暂存数据
+  const pendingAvatar = { his: null, her: null };
+
+  // 头像预览更新
+  function updatePreview(person) {
+    const preview = document.getElementById(`settings${person === 'his' ? 'His' : 'Her'}AvatarPreview`);
+    if (!preview) return;
+    const data = pendingAvatar[person] || (appSettings ? appSettings[person === 'his' ? 'hisAvatar' : 'herAvatar'] : null) || (person === 'his' ? '👦' : '👧');
+    preview.innerHTML = isImg(data) ? `<img src="${data}" class="avatar-preview-img">` : data;
+  }
+
+  // 头像上传绑定
+  document.querySelectorAll('.settings-avatar-box').forEach(box => {
+    const person = box.dataset.person;
+    const input = box.querySelector('.settings-avatar-input');
+    box.querySelector('.settings-avatar-btn').addEventListener('click', () => input.click());
+    box.querySelector('.settings-avatar-reset').addEventListener('click', () => {
+      pendingAvatar[person] = null;
+      // 标记恢复默认，保存时用 emoji
+      box.dataset.reset = '1';
+      updatePreview(person);
+    });
+    input.addEventListener('change', e => {
+      const f = e.target.files[0];
+      if (!f) return;
+      const r = new FileReader();
+      r.onload = () => {
+        pendingAvatar[person] = r.result;
+        delete box.dataset.reset;
+        updatePreview(person);
+      };
+      r.readAsDataURL(f);
+      e.target.value = '';
+    });
+  });
+
+  $('#navSettingsBtn').addEventListener('click', () => {
+    if (appSettings) {
+      $('#settingsHisName').value = appSettings.hisNickname;
+      $('#settingsHerName').value = appSettings.herNickname;
+      pendingAvatar.his = null;
+      pendingAvatar.her = null;
+      document.querySelectorAll('.settings-avatar-box').forEach(b => delete b.dataset.reset);
+      updatePreview('his');
+      updatePreview('her');
+    }
+    overlay.style.display = 'flex';
+  });
+
+  $('#settingsCancel').addEventListener('click', () => { overlay.style.display = 'none'; });
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.style.display = 'none'; });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') overlay.style.display = 'none'; });
+
+  $('#settingsSave').addEventListener('click', async () => {
+    const hisName = $('#settingsHisName').value.trim() || '男生';
+    const herName = $('#settingsHerName').value.trim() || '女生';
+    const body = { hisNickname: hisName, herNickname: herName };
+
+    // 头像：如果有新上传的图片传 data，重置则传 emoji，否则保持原值
+    const hisBox = document.querySelector('.settings-avatar-box[data-person="his"]');
+    const herBox = document.querySelector('.settings-avatar-box[data-person="her"]');
+    if (hisBox.dataset.reset) body.hisAvatar = '👦';
+    else if (pendingAvatar.his) body.hisAvatarData = pendingAvatar.his;
+    if (herBox.dataset.reset) body.herAvatar = '👧';
+    else if (pendingAvatar.her) body.herAvatarData = pendingAvatar.her;
+
+    try {
+      const res = await api('PUT', '/api/settings', body);
+      appSettings = res.settings;
+      applySettings(res.settings);
+      overlay.style.display = 'none';
+    } catch { alert('保存失败'); }
+  });
+}
+
 // ====== 密码系统 ======
 const TOKENS = { his: null, her: null };
 
@@ -764,7 +882,7 @@ function initPhotos() {
 let curConv = null, chatLoading = false;
 let chatSpace = 'public'; // 'public', 'his', 'her'
 const chatSpaceToken = { his: null, her: null };
-const SPACE_NAMES = { public: '公开', his: '林林', her: '昕昕' };
+const SPACE_NAMES = { public: '公开', his: '男生', her: '女生' };
 
 function chatApiUrl(path) {
   let url = path;
@@ -974,7 +1092,8 @@ function initChat() {
 }
 
 // ====== 启动 ======
-function init() {
+async function init() {
+  await loadSettings();
   createParticles();
   updateClock();
   setInterval(updateClock, 1000);
@@ -989,7 +1108,6 @@ function init() {
     $(`#diary${cap(p)}Lock`).querySelector('.diary-pwd-btn').addEventListener('click', () => verifyPw(p));
     $(`#diary${cap(p)}Add`).addEventListener('click', () => addEntry(p));
     initDiaryMedia(p);
-    // 日期筛选
     $(`#diary${cap(p)}Filter`).addEventListener('change', e => {
       diaryFilter[p] = e.target.value || '';
       const clearBtn = $(`.diary-filter-clear[data-person="${p}"]`);
@@ -1008,6 +1126,7 @@ function init() {
   initPhotos();
   renderPhotos();
   initChat();
+  initSettings();
 }
 
 document.addEventListener('DOMContentLoaded', init);

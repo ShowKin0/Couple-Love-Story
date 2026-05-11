@@ -320,6 +320,41 @@ app.delete('/api/photos/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// ====== 设置 API ======
+app.get('/api/settings', (req, res) => {
+  let settings = readJSON('settings');
+  if (!settings) {
+    settings = { hisNickname: '男生', herNickname: '女生', hisAvatar: '👦', herAvatar: '👧' };
+    writeJSON('settings', settings);
+  }
+  res.json(settings);
+});
+
+app.put('/api/settings', (req, res) => {
+  const { hisNickname, herNickname, hisAvatar, herAvatar, hisAvatarData, herAvatarData } = req.body;
+  let finalHis = hisAvatar || '👦';
+  let finalHer = herAvatar || '👧';
+  if (hisAvatarData) { const u = saveAvatarFile(hisAvatarData, 'his'); if (u) finalHis = u; }
+  if (herAvatarData) { const u = saveAvatarFile(herAvatarData, 'her'); if (u) finalHer = u; }
+  const settings = {
+    hisNickname: hisNickname || '男生',
+    herNickname: herNickname || '女生',
+    hisAvatar: finalHis,
+    herAvatar: finalHer
+  };
+  writeJSON('settings', settings);
+  res.json({ ok: true, settings });
+});
+
+function saveAvatarFile(base64Data, person) {
+  const m = base64Data.match(/^data:image\/(\w+);base64,(.+)$/);
+  if (!m) return null;
+  const ext = m[1] === 'jpeg' ? 'jpg' : m[1];
+  const name = 'avatar-' + person + '-' + uid() + '.' + ext;
+  fs.writeFileSync(path.join(UPLOADS_DIR, name), Buffer.from(m[2], 'base64'));
+  return '/uploads/' + name;
+}
+
 // ====== AI 聊天 — 历史对话 ======
 
 // 获取所有对话（支持空间筛选）
@@ -418,8 +453,8 @@ app.post('/api/chat/conversations/:id/messages', async (req, res) => {
     let suffix = `【当前时间：${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日 星期${weekDays[now.getDay()]} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}】`;
     if (isLate) suffix += isSchoolDay ? '【凌晨了，明天是上学日/工作日，必须催用户快去睡】' : '【凌晨了，必须催用户快去睡】';
     let genderNote = '';
-    if (conv.space === 'his') genderNote = '【当前用户是男方（男友/丈夫）】';
-    else if (conv.space === 'her') genderNote = '【当前用户是女方（女友/妻子）】';
+    if (conv.space === 'his') genderNote = '【当前用户是男生（男方）】';
+    else if (conv.space === 'her') genderNote = '【当前用户是女生（女方）】';
     const tlData = readJSON("timeline") || [];
     const tlStr = tlData.length ? tlData.map(t => t.date + " " + t.title).join("、") : "暂无";
     const baseContent = `【纪念日：${tlStr}】
