@@ -98,6 +98,7 @@ function initSettings() {
       $('#settingsHisName').value = appSettings.hisNickname;
       $('#settingsHerName').value = appSettings.herNickname;
       $('#settingsLoveDate').value = appSettings.loveDate || '2026-04-06';
+      $('#settingsAiInstruction').value = appSettings.aiInstruction || '';
       pendingAvatar.his = null;
       pendingAvatar.her = null;
       document.querySelectorAll('.settings-avatar-box').forEach(b => delete b.dataset.reset);
@@ -115,7 +116,8 @@ function initSettings() {
     const hisName = $('#settingsHisName').value.trim() || '男生';
     const herName = $('#settingsHerName').value.trim() || '女生';
     const loveDate = $('#settingsLoveDate').value || '2026-04-06';
-    const body = { hisNickname: hisName, herNickname: herName, loveDate };
+    const aiInstruction = $('#settingsAiInstruction').value.trim();
+    const body = { hisNickname: hisName, herNickname: herName, loveDate, aiInstruction };
 
     // 头像：如果有新上传的图片传 data，重置则传 emoji，否则保持原值
     const hisBox = document.querySelector('.settings-avatar-box[data-person="his"]');

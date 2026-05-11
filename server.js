@@ -323,15 +323,19 @@ app.delete('/api/photos/:id', (req, res) => {
 // ====== 设置 API ======
 app.get('/api/settings', (req, res) => {
   let settings = readJSON('settings');
-  if (!settings) {
-    settings = { hisNickname: '男生', herNickname: '女生', hisAvatar: '👦', herAvatar: '👧', loveDate: '2026-04-06' };
-    writeJSON('settings', settings);
+  if (!settings) settings = {};
+  // 补全默认字段
+  const defaults = { hisNickname: '男生', herNickname: '女生', hisAvatar: '👦', herAvatar: '👧', loveDate: '2026-04-06', aiInstruction: '' };
+  let changed = false;
+  for (const [k, v] of Object.entries(defaults)) {
+    if (settings[k] === undefined) { settings[k] = v; changed = true; }
   }
+  if (changed) writeJSON('settings', settings);
   res.json(settings);
 });
 
 app.put('/api/settings', (req, res) => {
-  const { hisNickname, herNickname, hisAvatar, herAvatar, hisAvatarData, herAvatarData, loveDate } = req.body;
+  const { hisNickname, herNickname, hisAvatar, herAvatar, hisAvatarData, herAvatarData, loveDate, aiInstruction } = req.body;
   let finalHis = hisAvatar || '👦';
   let finalHer = herAvatar || '👧';
   if (hisAvatarData) { const u = saveAvatarFile(hisAvatarData, 'his'); if (u) finalHis = u; }
@@ -341,7 +345,8 @@ app.put('/api/settings', (req, res) => {
     herNickname: herNickname || '女生',
     hisAvatar: finalHis,
     herAvatar: finalHer,
-    loveDate: loveDate || '2026-04-06'
+    loveDate: loveDate || '2026-04-06',
+    aiInstruction: aiInstruction || ''
   };
   writeJSON('settings', settings);
   res.json({ ok: true, settings });
@@ -458,7 +463,9 @@ app.post('/api/chat/conversations/:id/messages', async (req, res) => {
     else if (conv.space === 'her') genderNote = '【当前用户是女生（女方）】';
     const tlData = readJSON("timeline") || [];
     const tlStr = tlData.length ? tlData.map(t => t.date + " " + t.title).join("、") : "暂无";
-    const baseContent = `【纪念日：${tlStr}】
+    const aiCfg = readJSON('settings') || {};
+    const userInst = (aiCfg.aiInstruction || '').trim();
+    const defaultContent = `【纪念日：${tlStr}】
 【背景：这是一对异地恋情侣，两人不在一起生活，主要通过聊天联系】
 你是恋爱军师/红娘，职责是帮这对情侣感情更好。
 
@@ -484,6 +491,12 @@ app.post('/api/chat/conversations/:id/messages', async (req, res) => {
 
 ${genderNote || ''}
 ${suffix}`;
+    const baseContent = userInst
+      ? `【纪念日：${tlStr}】
+${userInst}
+${genderNote || ''}
+${suffix}`
+      : defaultContent;
     const systemPrompt = {
       role: 'system',
       content: baseContent,
@@ -584,13 +597,17 @@ app.post('/api/chat', async (req, res) => {
   const isSchoolDay = now.getDay() >= 1 && now.getDay() <= 4;
   let suffix = `【当前时间：${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日 星期${weekDays[now.getDay()]} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}】`;
   if (isLate) suffix += isSchoolDay ? '【凌晨了，明天是上学日/工作日，必须催用户快去睡】' : '【凌晨了，必须催用户快去睡】';
-  const systemPrompt = {
-    role: 'system',
-    content: `【背景：这是一对异地恋情侣，两人不在一起生活，主要通过聊天联系】
+  const aiCfg2 = readJSON('settings') || {};
+  const userInst2 = (aiCfg2.aiInstruction || '').trim();
+  const defContent = `【背景：这是一对异地恋情侣，两人不在一起生活，主要通过聊天联系】
 你是恋爱军师/红娘，帮情侣感情更好。
 严重警告：绝不能说你是用户的恋人/对象！绝不能用恋人语气说话！禁止"偷偷想我""靠着我"等暧昧话。
 用户敷衍(嗯/哦/啊)适当换个话题。用"你们""你俩"语气。不说自己是AI。
-${suffix}`,
+${suffix}`;
+  const promptContent = userInst2 ? `${userInst2}\n${suffix}` : defContent;
+  const systemPrompt = {
+    role: 'system',
+    content: promptContent,
   };
 
   try {
