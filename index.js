@@ -49,6 +49,7 @@ function applySettings(s) {
   SPACE_NAMES.her = s.herNickname;
   const footer = document.querySelector('.footer p');
   if (footer) footer.textContent = `Made with 💖 — 2026 ${s.herNickname}和${s.hisNickname}的爱情故事`;
+  updateLoveDays();
 }
 
 // ====== 设置弹窗 ======
@@ -96,6 +97,7 @@ function initSettings() {
     if (appSettings) {
       $('#settingsHisName').value = appSettings.hisNickname;
       $('#settingsHerName').value = appSettings.herNickname;
+      $('#settingsLoveDate').value = appSettings.loveDate || '2026-04-06';
       pendingAvatar.his = null;
       pendingAvatar.her = null;
       document.querySelectorAll('.settings-avatar-box').forEach(b => delete b.dataset.reset);
@@ -112,7 +114,8 @@ function initSettings() {
   $('#settingsSave').addEventListener('click', async () => {
     const hisName = $('#settingsHisName').value.trim() || '男生';
     const herName = $('#settingsHerName').value.trim() || '女生';
-    const body = { hisNickname: hisName, herNickname: herName };
+    const loveDate = $('#settingsLoveDate').value || '2026-04-06';
+    const body = { hisNickname: hisName, herNickname: herName, loveDate };
 
     // 头像：如果有新上传的图片传 data，重置则传 emoji，否则保持原值
     const hisBox = document.querySelector('.settings-avatar-box[data-person="his"]');
@@ -126,6 +129,7 @@ function initSettings() {
       const res = await api('PUT', '/api/settings', body);
       appSettings = res.settings;
       applySettings(res.settings);
+      updateLoveDays();
       overlay.style.display = 'none';
     } catch { alert('保存失败'); }
   });
@@ -774,10 +778,14 @@ function createParticles() {
 }
 
 // ====== 相恋天数 ======
-const LOVE_START = new Date(2026, 3, 6); // 2026-04-06
+function getLoveStart() {
+  const d = (appSettings && appSettings.loveDate) || '2026-04-06';
+  const p = d.split('-');
+  return new Date(+p[0], +p[1] - 1, +p[2]);
+}
 function updateLoveDays() {
   const now = new Date();
-  const diff = now - LOVE_START;
+  const diff = now - getLoveStart();
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
   const el = $('#heroDays');
   if (el) el.innerHTML = `💕 我们在一起的第 <span class="days-num">${days}</span> 天`;

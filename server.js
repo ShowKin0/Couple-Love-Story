@@ -324,14 +324,14 @@ app.delete('/api/photos/:id', (req, res) => {
 app.get('/api/settings', (req, res) => {
   let settings = readJSON('settings');
   if (!settings) {
-    settings = { hisNickname: '男生', herNickname: '女生', hisAvatar: '👦', herAvatar: '👧' };
+    settings = { hisNickname: '男生', herNickname: '女生', hisAvatar: '👦', herAvatar: '👧', loveDate: '2026-04-06' };
     writeJSON('settings', settings);
   }
   res.json(settings);
 });
 
 app.put('/api/settings', (req, res) => {
-  const { hisNickname, herNickname, hisAvatar, herAvatar, hisAvatarData, herAvatarData } = req.body;
+  const { hisNickname, herNickname, hisAvatar, herAvatar, hisAvatarData, herAvatarData, loveDate } = req.body;
   let finalHis = hisAvatar || '👦';
   let finalHer = herAvatar || '👧';
   if (hisAvatarData) { const u = saveAvatarFile(hisAvatarData, 'his'); if (u) finalHis = u; }
@@ -340,7 +340,8 @@ app.put('/api/settings', (req, res) => {
     hisNickname: hisNickname || '男生',
     herNickname: herNickname || '女生',
     hisAvatar: finalHis,
-    herAvatar: finalHer
+    herAvatar: finalHer,
+    loveDate: loveDate || '2026-04-06'
   };
   writeJSON('settings', settings);
   res.json({ ok: true, settings });
