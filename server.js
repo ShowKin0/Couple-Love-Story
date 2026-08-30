@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 1314;
 
 // ====== 目录初始化 ======
 const DATA_DIR = path.join(__dirname, 'data');

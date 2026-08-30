@@ -12,7 +12,40 @@
 | 🤖 **AI 聊天**  | 公开聊天 + 两个独立私密空间，可自定义 AI 人设       |
 | ⚙️ **设置**     | 自定义昵称、头像、相恋日、AI 指令                   |
 
-## 快速开始
+## Docker 部署（推荐）
+
+服务器需要安装 Docker Engine 和 Docker Compose 插件。将项目上传到服务器后，先创建生产环境配置：
+
+```bash
+cp .env.example .env
+```
+
+编辑 `.env`，至少填入 `API_KEY`；如需修改服务器对外端口，设置 `HOST_PORT`，例如 `HOST_PORT=8080`。
+
+首次构建并在后台启动：
+
+```bash
+docker compose up -d --build
+```
+
+查看服务状态和日志：
+
+```bash
+docker compose ps
+docker compose logs -f app
+```
+
+浏览器访问 `http://服务器IP:HOST_PORT`。若未设置 `HOST_PORT`，默认端口为 `1314`。
+
+更新部署：
+
+```bash
+docker compose up -d --build
+```
+
+应用数据保存在 Docker 命名卷 `love-data` 和 `love-uploads` 中，重建容器不会丢失。备份前先停止服务，再导出卷内容或备份 Docker 数据目录；执行 `docker compose down -v` 会删除这些数据卷，除非确认要清空数据，请不要使用该命令。
+
+## 本地开发
 
 ### 1. 安装依赖
 
@@ -34,7 +67,9 @@ cp .env.example .env
 API_KEY=sk-your-api-key
 API_ENDPOINT=https://api.deepseek.com/chat/completions
 API_MODEL=deepseek-chat
-PORT=3000
+PORT=1314
+# Docker Compose 对外端口（可选）
+HOST_PORT=1314
 ```
 
 > 默认使用 DeepSeek API，兼容 OpenAI 格式的接口都可以用。
@@ -47,7 +82,7 @@ node server.js
 
 或双击 `start.bat`（Windows 静默启动）。
 
-访问 `http://localhost:3000` 即可。
+访问 `http://localhost:1314` 即可。
 
 ### 局域网/公网访问
 

@@ -1,0 +1,22 @@
+services:
+  app:
+    build:
+      context: .
+    image: love-story:latest
+    container_name: love-story
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: "1314"
+    ports:
+      - "${HOST_PORT:-1314}:1314"
+    volumes:
+      - love-data:/app/data
+      - love-uploads:/app/uploads
+    init: true
+
+volumes:
+  love-data:
+  love-uploads:
