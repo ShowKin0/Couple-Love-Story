@@ -5,7 +5,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "mobile:sync": "cap sync android",
+    "mobile:android": "cap open android"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

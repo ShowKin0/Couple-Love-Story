@@ -68,6 +68,43 @@ docker compose exec -T app tar -czf - /app/data /app/uploads > love-backup-$(dat
 
 当前 Docker 配置通过 HTTP 提供服务。生产 HTTPS 需要域名和反向代理（Caddy 或 Nginx）；不要在浏览器中把 IP 地址直接改为 `https://`。
 
+## Android APK
+
+项目可通过 Capacitor 生成 Android 安装包。APK 打开的网站地址从未提交的 `.env` 文件读取，因此服务器需要保持可用，所有数据仍保存在服务器的 Docker 数据卷中。
+
+### 首次准备
+
+构建电脑需要安装 Node.js、JDK 17 和 Android Studio（含 Android SDK）。在项目目录执行：
+
+```bash
+# 先在 .env 设置 APP_URL=https://你的域名
+npm install @capacitor/core @capacitor/android
+npm install -D @capacitor/cli
+npx cap add android
+npm run mobile:sync
+```
+
+上述命令会生成 `android/` 原生工程。请将此目录提交到 Git，但不要提交 `android/local.properties`、`*.jks` 或 `*.keystore`。
+
+### 本地调试 APK
+
+使用 Android Studio 打开 `android/` 目录，连接 Android 手机后点击运行；或在 Windows PowerShell 中执行：
+
+```powershell
+cd android
+.\gradlew.bat assembleDebug
+```
+
+生成文件为 `android/app/build/outputs/apk/debug/app-debug.apk`，发送到 Android 手机安装即可。安装前需在手机设置中允许对应来源安装未知应用。
+
+### 发布签名 APK
+
+在 Android Studio 中打开 `android/`，选择 **Build > Generate Signed Bundle / APK > APK**，首次创建并妥善备份签名密钥，选择 `release` 构建类型。生成的 `app-release.apk` 可分发安装。
+
+签名密钥一旦丢失，今后无法用同一应用身份更新已安装的 APK；请不要上传到 Git 或服务器公开目录。若计划发布到 Google Play，选择同一窗口中的 Android App Bundle，生成 `.aab` 文件。
+
+修改 `.env` 中的 `APP_URL`、`capacitor.config.ts` 中的应用名称或原生依赖后，运行 `npm run mobile:sync` 再重新构建 APK。`APP_URL` 在 APK 构建时写入原生工程，服务器上仅修改 `.env` 不会改变已安装的 APK。
+
 ## 本地开发
 
 ### 1. 安装依赖
