@@ -2,7 +2,8 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#fff5f7">
   <title>我们的爱情故事 💕</title>
   <link rel="stylesheet" href="index.css">
 </head>
@@ -37,8 +38,35 @@
         <li><a href="#photos" data-nav>照片墙</a></li>
         <li><a href="#chat" data-nav>AI 聊天</a></li>
       </ul>
-      <button class="nav-settings" id="navSettingsBtn" aria-label="设置">⚙️</button>
+      <button class="nav-settings" id="navSettingsBtn" data-open-settings aria-label="设置">⚙️</button>
     </div>
+  </nav>
+
+  <nav class="app-tabbar" aria-label="应用导航">
+    <a class="app-tab-item" href="#hero" data-nav>
+      <span class="app-tab-icon" aria-hidden="true">⌂</span>
+      <span>首页</span>
+    </a>
+    <a class="app-tab-item" href="#timeline" data-nav>
+      <span class="app-tab-icon" aria-hidden="true">◷</span>
+      <span>时光</span>
+    </a>
+    <a class="app-tab-item" href="#diary" data-nav>
+      <span class="app-tab-icon" aria-hidden="true">✎</span>
+      <span>日记</span>
+    </a>
+    <a class="app-tab-item" href="#photos" data-nav>
+      <span class="app-tab-icon" aria-hidden="true">▣</span>
+      <span>相册</span>
+    </a>
+    <a class="app-tab-item" href="#chat" data-nav>
+      <span class="app-tab-icon" aria-hidden="true">◌</span>
+      <span>聊天</span>
+    </a>
+    <button class="app-tab-item" type="button" data-open-settings>
+      <span class="app-tab-icon" aria-hidden="true">⚙</span>
+      <span>设置</span>
+    </button>
   </nav>
 
   <!-- Hero 区域 -->

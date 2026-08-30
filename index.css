@@ -108,6 +108,7 @@ body {
   display: block; width: 24px; height: 2.5px;
   background: var(--text); border-radius: 2px; transition: 0.3s;
 }
+.app-tabbar { display: none; }
 
 /* ===== Hero ===== */
 .hero {
@@ -950,6 +951,162 @@ body {
   border-color: #FF6B6B;
   color: #E04040;
   animation: announcePop 0.6s ease, urgentPulse 1.5s ease-in-out infinite;
+}
+
+/* ===== App 优先小屏布局 ===== */
+@media (max-width: 768px) {
+  :root { --app-tab-height: 68px; }
+
+  html { scroll-padding-bottom: calc(var(--app-tab-height) + env(safe-area-inset-bottom)); }
+  body {
+    padding-bottom: calc(var(--app-tab-height) + env(safe-area-inset-bottom));
+    -webkit-tap-highlight-color: transparent;
+  }
+  .navbar { display: none; }
+  .particles { display: none; }
+
+  .app-tabbar {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 2500;
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    min-height: var(--app-tab-height);
+    padding: 7px 4px calc(7px + env(safe-area-inset-bottom));
+    border-top: 1px solid rgba(93, 78, 95, 0.12);
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 -8px 24px rgba(93, 78, 95, 0.10);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+  .app-tab-item {
+    display: grid;
+    min-width: 0;
+    min-height: 48px;
+    padding: 3px 1px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-light);
+    font: inherit;
+    font-size: 0.68rem;
+    font-weight: 600;
+    line-height: 1.1;
+    place-items: center;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  .app-tab-icon { font-size: 1.22rem; line-height: 1; }
+  .app-tab-item.active { color: var(--pink-dark); background: #fff0f3; }
+  .app-tab-item:focus-visible,
+  .chat-toggle-btn:focus-visible,
+  .nav-settings:focus-visible { outline: 2px solid var(--blue-dark); outline-offset: -2px; }
+
+  .site-access-gate {
+    padding: max(24px, env(safe-area-inset-top)) 20px calc(24px + env(safe-area-inset-bottom));
+  }
+  .site-access-card { width: min(100%, 390px); padding: 28px 24px; }
+
+  .hero {
+    min-height: 100svh;
+    padding: max(44px, env(safe-area-inset-top)) 20px 112px;
+  }
+  .hero-content { width: min(100%, 420px); }
+  .hero-floating { display: none; }
+  .hero-avatars { margin-bottom: 14px; }
+  .avatar { width: 68px; height: 68px; font-size: 34px; }
+  .hero-title { font-size: clamp(1.8rem, 8vw, 2.45rem); line-height: 1.25; }
+  .hero-subtitle { margin-bottom: 18px; }
+  .clock-time { font-size: clamp(1.8rem, 8vw, 2.5rem); }
+  .hero-days { margin-top: 12px; letter-spacing: 0; }
+  .hero-announce { margin-top: 16px; }
+  .hero-announce-item { display: block; width: 100%; margin: 6px 0; padding: 11px 14px; }
+
+  .section { padding: 48px 18px; scroll-margin-top: 12px; }
+  .section-title { margin-bottom: 24px; font-size: 1.45rem; }
+  .timeline-section { padding-top: 52px; }
+  .timeline-add { display: grid; grid-template-columns: 1fr; gap: 10px; }
+  .timeline-add .input,
+  .timeline-add .btn { width: 100%; min-height: 48px; }
+  .tl-card { border-radius: 12px; }
+
+  .diary-dual { gap: 16px; }
+  .diary-panel { min-height: 260px; padding: 18px; border-radius: 12px; }
+  .diary-toolbar { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .diary-toolbar .btn { min-height: 44px; padding: 8px 4px; font-size: 0.78rem; justify-content: center; }
+  .diary-audio-timer { grid-column: 1 / -1; text-align: center; }
+  .diary-form > .btn { width: 100%; min-height: 48px; justify-content: center; }
+  .diary-filter { align-items: stretch; }
+  .diary-filter-input { min-height: 44px; }
+
+  .photo-upload .upload-label { width: 100%; min-height: 48px; justify-content: center; }
+  .photo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .photo-card { border-radius: 10px; }
+
+  .chat-section { padding: 22px 0 0; scroll-margin-top: 0; }
+  .chat-section .section-title { padding: 0 18px; margin-bottom: 14px; text-align: left; }
+  .chat-space-bar { gap: 8px; margin: 0 18px 12px; }
+  .chat-space-btn { min-height: 44px; padding: 7px 6px; font-size: 0.78rem; }
+  .chat-container {
+    position: relative;
+    height: max(360px, calc(100svh - 210px));
+    min-height: 0;
+    border-radius: 0;
+    box-shadow: 0 -1px 0 rgba(93, 78, 95, 0.08);
+  }
+  .chat-sidebar {
+    position: absolute;
+    inset: 0 0 auto;
+    z-index: 5;
+    width: auto;
+    max-height: 0;
+    border-right: 0;
+    border-bottom: 1px solid #f0e0e5;
+    background: #fff9fa;
+  }
+  .chat-sidebar.open { max-height: min(52svh, 360px); box-shadow: 0 10px 24px rgba(93, 78, 95, 0.14); }
+  .chat-main,
+  .chat-box { display: flex; flex-direction: column; height: 100%; }
+  .chat-header { min-height: 52px; padding: 8px 16px; }
+  .chat-toggle-btn { display: grid; width: 44px; height: 44px; padding: 0; place-items: center; }
+  .chat-messages { flex: 1; height: auto; padding: 14px 16px; }
+  .chat-msg { max-width: 86%; padding: 11px 14px; font-size: 0.92rem; }
+  .chat-input-row { padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); }
+  .chat-input-row .input { min-height: 46px; }
+  #chatSend { min-width: 64px; min-height: 46px; padding: 10px 14px; justify-content: center; }
+  .chat-history-actions { display: flex; }
+  .chat-history-actions button { min-width: 32px; min-height: 32px; }
+
+  .settings-overlay,
+  .chat-pwd-overlay { align-items: flex-end; }
+  .settings-box,
+  .chat-pwd-box {
+    width: 100%;
+    max-width: none;
+    max-height: min(88svh, 760px);
+    padding: 24px 20px calc(20px + env(safe-area-inset-bottom));
+    border-radius: 18px 18px 0 0;
+  }
+  .settings-box { overscroll-behavior: contain; }
+  .settings-actions { position: sticky; bottom: -20px; margin: 20px -20px -20px; padding: 14px 20px calc(14px + env(safe-area-inset-bottom)); background: #fff; }
+  .settings-actions .btn { min-height: 48px; }
+  .settings-avatar-actions { flex: 1; flex-direction: row; }
+  .settings-avatar-actions .btn { min-height: 42px; justify-content: center; }
+
+  .modal { padding: max(16px, env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom)); }
+  .modal-img { max-width: 100%; max-height: 72svh; }
+  .modal-close { top: max(12px, env(safe-area-inset-top)); right: 16px; min-width: 44px; min-height: 44px; display: grid; place-items: center; }
+  .modal-del { min-height: 46px; }
+  .footer { padding: 32px 18px 16px; }
+}
+
+@media (max-width: 380px) {
+  .app-tab-item { font-size: 0.62rem; }
+  .app-tab-icon { font-size: 1.1rem; }
+  .chat-space-btn { font-size: 0.7rem; }
+  .diary-toolbar .btn { font-size: 0.7rem; }
 }
 @keyframes announcePop {
   0% { transform: scale(0); opacity: 0; }

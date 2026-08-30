@@ -98,7 +98,7 @@ function initSettings() {
     });
   });
 
-  $('#navSettingsBtn').addEventListener('click', () => {
+  function openSettings() {
     if (appSettings) {
       $('#settingsHisName').value = appSettings.hisNickname;
       $('#settingsHerName').value = appSettings.herNickname;
@@ -111,7 +111,9 @@ function initSettings() {
       updatePreview('her');
     }
     overlay.style.display = 'flex';
-  });
+  }
+
+  $$('[data-open-settings]').forEach(button => button.addEventListener('click', openSettings));
 
   $('#settingsCancel').addEventListener('click', () => { overlay.style.display = 'none'; });
   overlay.addEventListener('click', e => { if (e.target === overlay) overlay.style.display = 'none'; });
