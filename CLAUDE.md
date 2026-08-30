@@ -129,6 +129,6 @@ love/
 
 1. **不要删除 `data/` 目录** — 密码和用户数据都在这里，删除后无法恢复
 2. **密码不可修改** — 因为日记加密密钥由密码派生，没有万能密码
-3. **站点访问密码** — `.env` 中必须设置 `SITE_PASSWORD`
+3. **站点访问密码** — `.env` 中的 `SITE_PASSWORD` 可选；填写时至少 4 位
 4. **多端同步** — 数据保存在 Docker 数据卷，服务器部署使用 `docker compose up -d --build`
 5. **`.env` 配置** — 站点密码，以及可选的 OpenAI 兼容模型 key、endpoint、model

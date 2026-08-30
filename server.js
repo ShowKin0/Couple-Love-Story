@@ -90,11 +90,15 @@ app.use(express.json({ limit: '12mb' }));
 app.get('/healthz', (req, res) => res.json({ ok: true }));
 
 app.get('/api/access/status', (req, res) => {
-  res.json({ configured: Boolean(process.env.SITE_PASSWORD), authenticated: siteAccess.hasAccess(req) });
+  res.json({
+    configured: siteAccess.isEnabled(),
+    invalidConfiguration: siteAccess.hasInvalidConfiguration(),
+    authenticated: !siteAccess.isEnabled() || siteAccess.hasAccess(req),
+  });
 });
 
 app.post('/api/access/login', (req, res) => {
-  if (!process.env.SITE_PASSWORD) return res.status(503).json({ error: '未配置 SITE_PASSWORD' });
+  if (!siteAccess.isEnabled()) return res.status(400).json({ error: 'SITE_PASSWORD 未启用或少于 4 位' });
   if (!siteAccess.verifyPassword(req.body.password)) return res.status(403).json({ error: '访问密码错误' });
   siteAccess.setAccessCookie(req, res);
   res.json({ ok: true });
@@ -370,17 +374,26 @@ app.get('/api/settings', (req, res) => {
 
 app.put('/api/settings', (req, res) => {
   const { hisNickname, herNickname, hisAvatar, herAvatar, hisAvatarData, herAvatarData, loveDate, aiInstruction } = req.body;
-  let finalHis = hisAvatar || '👦';
-  let finalHer = herAvatar || '👧';
+  const existing = {
+    hisNickname: '男生',
+    herNickname: '女生',
+    hisAvatar: '👦',
+    herAvatar: '👧',
+    loveDate: '2026-04-06',
+    aiInstruction: '',
+    ...(readJSON('settings') || {}),
+  };
+  let finalHis = typeof hisAvatar === 'string' && hisAvatar ? hisAvatar : existing.hisAvatar;
+  let finalHer = typeof herAvatar === 'string' && herAvatar ? herAvatar : existing.herAvatar;
   if (hisAvatarData) { const u = saveAvatarFile(hisAvatarData, 'his'); if (u) finalHis = u; }
   if (herAvatarData) { const u = saveAvatarFile(herAvatarData, 'her'); if (u) finalHer = u; }
   const settings = {
-    hisNickname: typeof hisNickname === 'string' && hisNickname.trim() ? hisNickname.trim().slice(0, 30) : '男生',
-    herNickname: typeof herNickname === 'string' && herNickname.trim() ? herNickname.trim().slice(0, 30) : '女生',
+    hisNickname: typeof hisNickname === 'string' ? (hisNickname.trim().slice(0, 30) || '男生') : existing.hisNickname,
+    herNickname: typeof herNickname === 'string' ? (herNickname.trim().slice(0, 30) || '女生') : existing.herNickname,
     hisAvatar: finalHis,
     herAvatar: finalHer,
-    loveDate: loveDate || '2026-04-06',
-    aiInstruction: typeof aiInstruction === 'string' ? aiInstruction.slice(0, 5_000) : ''
+    loveDate: typeof loveDate === 'string' && loveDate ? loveDate : existing.loveDate,
+    aiInstruction: typeof aiInstruction === 'string' ? aiInstruction.slice(0, 5_000) : existing.aiInstruction,
   };
   writeJSON('settings', settings);
   res.json({ ok: true, settings });

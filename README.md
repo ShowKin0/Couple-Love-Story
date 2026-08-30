@@ -20,11 +20,11 @@
 cp .env.example .env
 ```
 
-编辑 `.env`，必须设置一个强 `SITE_PASSWORD`。AI 聊天可选；若使用任意 OpenAI Chat Completions 兼容服务，再填写其 `API_KEY`、完整 `API_ENDPOINT` 和 `API_MODEL`。如需修改服务器对外端口，设置 `HOST_PORT`，例如 `HOST_PORT=8080`。
+编辑 `.env`。`SITE_PASSWORD` 可选，留空时不启用全站门禁；填写时至少 4 位。AI 聊天可选；若使用任意 OpenAI Chat Completions 兼容服务，再填写其 `API_KEY`、完整 `API_ENDPOINT` 和 `API_MODEL`。如需修改服务器对外端口，设置 `HOST_PORT`，例如 `HOST_PORT=8080`。
 
 | 配置 | 是否必填 | 说明 |
 | --- | --- | --- |
-| `SITE_PASSWORD` | 是 | 全站访问密码，建议使用至少 16 位随机字符串 |
+| `SITE_PASSWORD` | 否 | 全站访问密码；留空则不启用，填写时至少 4 位 |
 | `API_KEY` | 否 | AI 服务商密钥；留空会禁用 AI 聊天 |
 | `API_ENDPOINT` | 否 | 完整的 OpenAI Chat Completions 接口地址 |
 | `API_MODEL` | 否 | 服务商支持的模型名 |
@@ -78,7 +78,7 @@ npm install
 
 ### 2. 配置 API
 
-复制 `.env.example` 为 `.env`，先设置 `SITE_PASSWORD`；AI 服务可按需配置：
+复制 `.env.example` 为 `.env`；AI 服务和全站访问密码均可按需配置：
 
 ```bash
 cp .env.example .env
@@ -87,7 +87,8 @@ cp .env.example .env
 编辑 `.env`：
 
 ```
-SITE_PASSWORD=请替换为强访问密码
+# 留空则不启用全站访问密码；填写时至少 4 位
+SITE_PASSWORD=
 API_KEY=你的服务商密钥
 API_ENDPOINT=https://服务商地址/v1/chat/completions
 API_MODEL=服务商模型名
@@ -97,7 +98,7 @@ PORT=1314
 HOST_PORT=1314
 ```
 
-> 网站入口由 `SITE_PASSWORD` 保护。AI 服务需要兼容 OpenAI Chat Completions 格式；不需要 AI 时可留空三个 `API_` 配置。
+> 填写 `SITE_PASSWORD` 后，网站入口受其保护；留空则直接访问。AI 服务需要兼容 OpenAI Chat Completions 格式；不需要 AI 时可留空三个 `API_` 配置。
 
 ### 3. 启动服务
 
@@ -117,7 +118,7 @@ npm test
 
 ### 首次使用
 
-1. 打开页面后，先输入 `.env` 中设置的站点访问密码
+1. 若设置了 `SITE_PASSWORD`，打开页面后先输入站点访问密码
 2. 双方各自设置日记密码（一经设置不可修改）
 3. 日记密码同时也是 AI 私密空间的验证密码
 
@@ -193,7 +194,7 @@ LoveNest/
 
 1. **不要删除 `data/` 目录** — 密码和数据都在里面，删除后无法恢复
 2. **密码不可修改** — 日记加密密钥由密码派生，没有万能密码
-3. **站点访问密码不可丢失** — 修改 `SITE_PASSWORD` 会让所有设备需要重新输入密码
+3. **站点访问密码可选** — 填写 `SITE_PASSWORD` 时至少 4 位；修改后会让所有设备需要重新输入密码
 4. **数据只存在服务器数据卷** — 迁移服务器时必须带上 `love-data` 和 `love-uploads`
 5. **修改 AI 指令** — 可在设置页面直接修改，无需编辑代码
 

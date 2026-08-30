@@ -14,3 +14,15 @@ test('site access issues and validates a signed HTTP-only cookie', () => {
   assert.match(headers['Set-Cookie'], /SameSite=Strict/);
   assert.equal(access.hasAccess({ headers: { cookie: headers['Set-Cookie'] } }), true);
 });
+
+test('empty site password disables the gate and short passwords are rejected', () => {
+  const openAccess = createSiteAccess('');
+  let proceeded = false;
+  openAccess.requireAccess({ headers: {} }, {}, () => { proceeded = true; });
+  assert.equal(proceeded, true);
+  assert.equal(openAccess.isEnabled(), false);
+
+  const invalidAccess = createSiteAccess('abc');
+  assert.equal(invalidAccess.isEnabled(), false);
+  assert.equal(invalidAccess.hasInvalidConfiguration(), true);
+});

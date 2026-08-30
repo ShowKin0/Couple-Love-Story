@@ -35,6 +35,29 @@ test('site gate protects APIs and prevents static data exposure', async () => {
     const authorized = await fetch(`${baseUrl}/api/settings`, { headers: { Cookie: cookie } });
     assert.equal(authorized.status, 200);
 
+    const initialSettings = await fetch(`${baseUrl}/api/settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      body: JSON.stringify({
+        hisNickname: '男生',
+        herNickname: '女生',
+        hisAvatar: '🧑',
+        herAvatar: '🌷',
+        loveDate: '2026-04-06',
+        aiInstruction: '',
+      }),
+    });
+    assert.equal(initialSettings.status, 200);
+
+    const updateHisAvatar = await fetch(`${baseUrl}/api/settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      body: JSON.stringify({ hisAvatar: '👨' }),
+    });
+    const updatedSettings = await updateHisAvatar.json();
+    assert.equal(updatedSettings.settings.hisAvatar, '👨');
+    assert.equal(updatedSettings.settings.herAvatar, '🌷');
+
     const dataPath = await fetch(`${baseUrl}/data/passwords.json`);
     assert.match(dataPath.headers.get('content-type'), /^text\/html/i);
   } finally {

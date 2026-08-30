@@ -35,9 +35,9 @@ async function loadSettings() {
 
 function applySettings(s) {
   const brand = $('.nav-brand');
-  if (brand) brand.textContent = `💕 ${s.herNickname}和${s.hisNickname}的爱情故事`;
+  if (brand) brand.textContent = `💕 ${s.hisNickname}和${s.herNickname}的爱情故事`;
   const title = $('.hero-title');
-  if (title) title.textContent = `${s.herNickname}和${s.hisNickname}的爱情故事`;
+  if (title) title.textContent = `${s.hisNickname}和${s.herNickname}的爱情故事`;
   const hisDiary = $('.diary-his .diary-name');
   if (hisDiary) hisDiary.textContent = `💙 ${s.hisNickname}的日记`;
   const herDiary = $('.diary-her .diary-name');
@@ -53,7 +53,7 @@ function applySettings(s) {
   SPACE_NAMES.his = s.hisNickname;
   SPACE_NAMES.her = s.herNickname;
   const footer = document.querySelector('.footer p');
-  if (footer) footer.textContent = `Made with 💖 — 2026 ${s.herNickname}和${s.hisNickname}的爱情故事`;
+  if (footer) footer.textContent = `Made with 💖 — 2026 ${s.hisNickname}和${s.herNickname}的爱情故事`;
   updateLoveDays();
 }
 
@@ -1168,7 +1168,8 @@ async function init() {
   initSiteAccessGate();
   try {
     const access = await api('GET', '/api/access/status');
-    if (!access.configured) return showSiteAccessGate('服务器尚未设置访问密码');
+    if (access.invalidConfiguration) return showSiteAccessGate('服务器访问密码至少需要 4 位');
+    if (!access.configured) return initApp();
     if (!access.authenticated) return showSiteAccessGate();
     initApp();
   } catch (error) {
