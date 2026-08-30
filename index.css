@@ -36,6 +36,7 @@ body {
   padding: 24px;
   background: rgba(255, 245, 247, 0.96);
 }
+.site-access-gate[hidden] { display: none !important; }
 .site-access-card {
   width: min(100%, 360px);
   display: grid;
