@@ -8,6 +8,18 @@
 </head>
 <body>
 
+  <div class="site-access-gate" id="siteAccessGate" hidden>
+    <form class="site-access-card" id="siteAccessForm">
+      <div class="site-access-icon" aria-hidden="true">🔒</div>
+      <h1>私密空间</h1>
+      <p>请输入访问密码后继续</p>
+      <label class="sr-only" for="siteAccessPassword">访问密码</label>
+      <input class="input" id="siteAccessPassword" type="password" autocomplete="current-password" required>
+      <p class="site-access-error" id="siteAccessError" role="alert"></p>
+      <button class="btn btn-pink" type="submit">进入</button>
+    </form>
+  </div>
+
   <!-- 浮动背景粒子 -->
   <div class="particles" id="particles"></div>
 

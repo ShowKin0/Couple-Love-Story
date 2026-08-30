@@ -5,11 +5,10 @@
 .env.*
 !.env.example
 node_modules
+test
 npm-debug.log*
 *.log
 data
 uploads
-*.bat
-get-ngrok-url.js
 CLAUDE.md
 README.md

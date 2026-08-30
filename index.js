@@ -1,11 +1,16 @@
 // ====== API ======
 async function api(method, url, body) {
-  const opts = { method, headers: {} };
+  const opts = { method, headers: {}, signal: AbortSignal.timeout(35_000) };
   if (body) opts.headers['Content-Type'] = 'application/json', opts.body = JSON.stringify(body);
-  const r = await fetch(url, opts);
-  const d = await r.json();
-  if (!r.ok && d.error) throw new Error(d.error);
-  return d;
+  try {
+    const r = await fetch(url, opts);
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || `请求失败 (${r.status})`);
+    return d;
+  } catch (error) {
+    if (error.name === 'TimeoutError') throw new Error('请求超时，请稍后重试');
+    throw error;
+  }
 }
 function $(s) { return document.querySelector(s); }
 function $$(s) { return document.querySelectorAll(s); }
@@ -1102,7 +1107,27 @@ function initChat() {
 }
 
 // ====== 启动 ======
-async function init() {
+function showSiteAccessGate(message = '') {
+  $('#siteAccessGate').hidden = false;
+  $('#siteAccessError').textContent = message;
+  $('#siteAccessPassword').focus();
+}
+
+function initSiteAccessGate() {
+  $('#siteAccessForm').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const password = $('#siteAccessPassword').value;
+    try {
+      await api('POST', '/api/access/login', { password });
+      $('#siteAccessGate').hidden = true;
+      initApp();
+    } catch (error) {
+      $('#siteAccessError').textContent = error.message;
+    }
+  });
+}
+
+async function initApp() {
   await loadSettings();
   createParticles();
   updateClock();
@@ -1137,6 +1162,18 @@ async function init() {
   renderPhotos();
   initChat();
   initSettings();
+}
+
+async function init() {
+  initSiteAccessGate();
+  try {
+    const access = await api('GET', '/api/access/status');
+    if (!access.configured) return showSiteAccessGate('服务器尚未设置访问密码');
+    if (!access.authenticated) return showSiteAccessGate();
+    initApp();
+  } catch (error) {
+    showSiteAccessGate(error.message);
+  }
 }
 
 document.addEventListener('DOMContentLoaded', init);

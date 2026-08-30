@@ -8,7 +8,7 @@
 - **前端**: 原生 HTML + CSS + JavaScript (无框架)
 - **加密**: AES-256-GCM (日记内容) + bcrypt (密码哈希)
 - **存储**: JSON 文件 (`data/` 目录)
-- **依赖**: express, dotenv, bcryptjs (密码), multer (已装但未用)
+- **依赖**: express, dotenv, bcryptjs (密码)
 
 ## 目录结构
 
@@ -18,9 +18,11 @@ love/
 ├── index.html         # 前端页面 (单页应用)
 ├── index.js           # 前端逻辑
 ├── index.css          # 前端样式
-├── start.bat          # Windows 一键启动 (静默模式)
-├── love.bat           # Windows 快速启动器
-├── get-ngrok-url.js   # 获取 ngrok 公网地址
+├── Dockerfile         # 生产镜像
+├── docker-compose.yml # 容器部署与数据卷
+├── lib/               # 存储与站点访问控制
+├── services/          # AI 客户端
+├── test/              # Node 内置测试
 ├── .env               # API 配置 (不提交)
 ├── package.json
 ├── .gitignore
@@ -60,13 +62,14 @@ love/
 - 上传照片到服务端 `uploads/` 目录
 - 预览、删除
 
-### AI 聊天 (DeepSeek API)
-- 公开聊天 + 两个私密空间 (男生/女生)
+### AI 聊天（OpenAI 兼容接口，可选）
+- 共享聊天 + 两个私密空间 (男生/女生)
 - 私密空间需日记密码验证
 - 历史对话管理 (切换/重命名/删除)
 - 每次打开自动加载上次对话
-- AI 指令位于 `server.js` 中的 `baseContent` 和 `systemPrompt`
+- AI 指令位于 `services/ai.js` 的 `buildSystemPrompt`
 - AI 知道当前时间、纪念日、用户性别 (私密空间)
+- 每 30 条未压缩消息会生成一次持续更新的上下文摘要，原始消息仍完整保存
 
 ### 首页
 - 实时时钟
@@ -108,16 +111,14 @@ love/
 ## 关键配置
 
 ### AI 指令位置
-`server.js` 中有两处 AI 系统指令:
-1. `POST /api/chat/conversations/:id/messages` 中 (主入口)
-2. `POST /api/chat` 中 (旧版兼容)
+`services/ai.js` 中的 `buildSystemPrompt` 统一生成 AI 系统指令。
 
 每次调用 AI 时动态拼接：
 - 纪念日列表 `${tlStr}`
 - 性别提示 `${genderNote}` (私密空间)
 - 当前时间 `${suffix}` (含凌晨提醒)
 
-修改 AI 行为请编辑 `baseContent` 变量。
+修改 AI 行为请编辑 `buildSystemPrompt`。
 
 ### 用户信息
 - 男方: "男生" (代码中 person = 'his')
@@ -128,7 +129,6 @@ love/
 
 1. **不要删除 `data/` 目录** — 密码和用户数据都在这里，删除后无法恢复
 2. **密码不可修改** — 因为日记加密密钥由密码派生，没有万能密码
-3. **修改 AI 指令时** — 需要同时更新两处 systemPrompt (主入口和旧版兼容)
-4. **多端同步** — 数据只存在启动服务器的电脑上，手机通过局域网/ngrok 访问
-5. **启动方式** — 双击 `start.bat` 或 `love.bat`
-6. **`.env` 配置** — DeepSeek API 的 key、endpoint、model
+3. **站点访问密码** — `.env` 中必须设置 `SITE_PASSWORD`
+4. **多端同步** — 数据保存在 Docker 数据卷，服务器部署使用 `docker compose up -d --build`
+5. **`.env` 配置** — 站点密码，以及可选的 OpenAI 兼容模型 key、endpoint、model

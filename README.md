@@ -9,7 +9,7 @@
 | 📖 **加密日记** | 双方各自独立的日记，AES-256-GCM 加密，支持图文+录音 |
 | 📅 **时间线**   | 纪念日管理，自动倒计时，首页10天内提醒              |
 | 📷 **照片墙**   | 上传照片到服务端，预览和删除                        |
-| 🤖 **AI 聊天**  | 公开聊天 + 两个独立私密空间，可自定义 AI 人设       |
+| 🤖 **AI 聊天**  | 共享聊天 + 两个独立私密空间，可自定义 AI 人设       |
 | ⚙️ **设置**     | 自定义昵称、头像、相恋日、AI 指令                   |
 
 ## Docker 部署（推荐）
@@ -20,7 +20,16 @@
 cp .env.example .env
 ```
 
-编辑 `.env`，至少填入 `API_KEY`；如需修改服务器对外端口，设置 `HOST_PORT`，例如 `HOST_PORT=8080`。
+编辑 `.env`，必须设置一个强 `SITE_PASSWORD`。AI 聊天可选；若使用任意 OpenAI Chat Completions 兼容服务，再填写其 `API_KEY`、完整 `API_ENDPOINT` 和 `API_MODEL`。如需修改服务器对外端口，设置 `HOST_PORT`，例如 `HOST_PORT=8080`。
+
+| 配置 | 是否必填 | 说明 |
+| --- | --- | --- |
+| `SITE_PASSWORD` | 是 | 全站访问密码，建议使用至少 16 位随机字符串 |
+| `API_KEY` | 否 | AI 服务商密钥；留空会禁用 AI 聊天 |
+| `API_ENDPOINT` | 否 | 完整的 OpenAI Chat Completions 接口地址 |
+| `API_MODEL` | 否 | 服务商支持的模型名 |
+| `AI_TIMEOUT_MS` | 否 | 单次模型请求超时，默认 `30000` 毫秒 |
+| `HOST_PORT` | 否 | 服务器对外端口，默认 `1314` |
 
 首次构建并在后台启动：
 
@@ -37,13 +46,27 @@ docker compose logs -f app
 
 浏览器访问 `http://服务器IP:HOST_PORT`。若未设置 `HOST_PORT`，默认端口为 `1314`。
 
-更新部署：
+更新代码、依赖或 Dockerfile 后重新构建：
 
 ```bash
 docker compose up -d --build
 ```
 
-应用数据保存在 Docker 命名卷 `love-data` 和 `love-uploads` 中，重建容器不会丢失。备份前先停止服务，再导出卷内容或备份 Docker 数据目录；执行 `docker compose down -v` 会删除这些数据卷，除非确认要清空数据，请不要使用该命令。
+只修改 `.env` 时无需构建镜像，重新创建容器即可：
+
+```bash
+docker compose up -d --force-recreate
+```
+
+应用数据保存在 Docker 命名卷 `love-data` 和 `love-uploads` 中，重建容器不会丢失。执行 `docker compose down -v` 会删除这些数据卷，除非确认要清空数据，请不要使用该命令。
+
+备份数据卷：
+
+```bash
+docker compose exec -T app tar -czf - /app/data /app/uploads > love-backup-$(date +%F).tar.gz
+```
+
+当前 Docker 配置通过 HTTP 提供服务。生产 HTTPS 需要域名和反向代理（Caddy 或 Nginx）；不要在浏览器中把 IP 地址直接改为 `https://`。
 
 ## 本地开发
 
@@ -55,7 +78,7 @@ npm install
 
 ### 2. 配置 API
 
-复制 `.env.example` 为 `.env`，填入你的 DeepSeek API 信息：
+复制 `.env.example` 为 `.env`，先设置 `SITE_PASSWORD`；AI 服务可按需配置：
 
 ```bash
 cp .env.example .env
@@ -64,15 +87,17 @@ cp .env.example .env
 编辑 `.env`：
 
 ```
-API_KEY=sk-your-api-key
-API_ENDPOINT=https://api.deepseek.com/chat/completions
-API_MODEL=deepseek-chat
+SITE_PASSWORD=请替换为强访问密码
+API_KEY=你的服务商密钥
+API_ENDPOINT=https://服务商地址/v1/chat/completions
+API_MODEL=服务商模型名
+AI_TIMEOUT_MS=30000
 PORT=1314
 # Docker Compose 对外端口（可选）
 HOST_PORT=1314
 ```
 
-> 默认使用 DeepSeek API，兼容 OpenAI 格式的接口都可以用。
+> 网站入口由 `SITE_PASSWORD` 保护。AI 服务需要兼容 OpenAI Chat Completions 格式；不需要 AI 时可留空三个 `API_` 配置。
 
 ### 3. 启动服务
 
@@ -80,22 +105,21 @@ HOST_PORT=1314
 node server.js
 ```
 
-或双击 `start.bat`（Windows 静默启动）。
-
 访问 `http://localhost:1314` 即可。
 
-### 局域网/公网访问
+### 4. 运行测试
 
-- **局域网**：在同一网络下访问提示中的局域网 IP
-- **公网**：使用 `get-ngrok-url.js` 或自行配置 ngrok
+```bash
+npm test
+```
 
 ## 使用说明
 
 ### 首次使用
 
-1. 打开页面后进入 **日记** 区域
+1. 打开页面后，先输入 `.env` 中设置的站点访问密码
 2. 双方各自设置日记密码（一经设置不可修改）
-3. 密码同时也是 AI 私密空间的验证密码
+3. 日记密码同时也是 AI 私密空间的验证密码
 
 ### 设置
 
@@ -115,8 +139,9 @@ node server.js
 
 ### AI 聊天
 
-- **公开空间**：所有人都能聊
+- **共享空间**：通过站点访问密码的用户都能聊
 - **私密空间**：需要日记密码验证，各自独立对话历史
+- 每积累 30 条未压缩消息，下一次发送前会调用同一模型生成对话摘要；页面仍保留全部原始消息
 
 自定义 AI 指令示例：
 
@@ -134,7 +159,7 @@ node server.js
 | 前端 | 原生 HTML + CSS + JavaScript     |
 | 加密 | AES-256-GCM + PBKDF2 + bcrypt    |
 | 存储 | JSON 文件（`data/` 目录）        |
-| AI   | DeepSeek API（兼容 OpenAI 格式） |
+| AI   | 任意 OpenAI Chat Completions 兼容接口（可选） |
 
 ## 目录结构
 
@@ -147,9 +172,11 @@ LoveNest/
 ├── package.json
 ├── .env                   # API 配置（不提交）
 ├── .env.example           # 配置示例
-├── start.bat              # Windows 一键启动
-├── love.bat               # Windows 快捷启动
-├── get-ngrok-url.js       # 获取公网地址
+├── Dockerfile              # 生产镜像
+├── docker-compose.yml      # 容器部署和持久化卷
+├── lib/                    # 存储和访问控制模块
+├── services/               # AI 客户端
+├── test/                   # Node 内置测试
 ├── data/                  # 数据存储（不提交）
 │   ├── passwords.json     # 密码哈希和加密密钥
 │   ├── diary-his.json     # 他的日记（AES加密）
@@ -160,15 +187,15 @@ LoveNest/
 │   ├── sessions.json      # 登录会话
 │   └── settings.json      # 全局设置
 └── uploads/               # 照片文件（不提交）
-    └── avatars/           # 自定义头像
 ```
 
 ## 注意事项
 
 1. **不要删除 `data/` 目录** — 密码和数据都在里面，删除后无法恢复
 2. **密码不可修改** — 日记加密密钥由密码派生，没有万能密码
-3. **数据只存在服务端** — 手机通过局域网/ngrok 访问需保持服务端运行
-4. **修改 AI 指令** — 可在设置页面直接修改，无需编辑代码
+3. **站点访问密码不可丢失** — 修改 `SITE_PASSWORD` 会让所有设备需要重新输入密码
+4. **数据只存在服务器数据卷** — 迁移服务器时必须带上 `love-data` 和 `love-uploads`
+5. **修改 AI 指令** — 可在设置页面直接修改，无需编辑代码
 
 ## License
 

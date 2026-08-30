@@ -4,14 +4,20 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
+const { createSiteAccess } = require('./lib/site-access');
+const { createStorage } = require('./lib/storage');
+const { buildSystemPrompt, compactConversation, getCompactedThrough, requestChatReply, shouldCompactConversation } = require('./services/ai');
 
 const app = express();
 const PORT = process.env.PORT || 1314;
 
 // ====== 目录初始化 ======
-const DATA_DIR = path.join(__dirname, 'data');
-const UPLOADS_DIR = path.join(__dirname, 'uploads');
-[DATA_DIR, UPLOADS_DIR].forEach(d => { if (!fs.existsSync(d)) fs.mkdirSync(d); });
+const DATA_DIR = process.env.APP_DATA_DIR || path.join(__dirname, 'data');
+const UPLOADS_DIR = process.env.APP_UPLOADS_DIR || path.join(__dirname, 'uploads');
+fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+const { readJSON, writeJSON } = createStorage(DATA_DIR);
+const siteAccess = createSiteAccess(process.env.SITE_PASSWORD);
+const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 
 // ====== 工具函数 ======
 const ALGO = 'aes-256-gcm';
@@ -25,15 +31,6 @@ function localTime() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 }
-function readJSON(name) {
-  const p = path.join(DATA_DIR, name + '.json');
-  if (!fs.existsSync(p)) return null;
-  try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return null; }
-}
-function writeJSON(name, data) {
-  fs.writeFileSync(path.join(DATA_DIR, name + '.json'), JSON.stringify(data, null, 2));
-}
-
 // 从密码派生 AES 密钥
 function deriveKey(password, saltHex) {
   return crypto.pbkdf2Sync(password, Buffer.from(saltHex, 'hex'), ITERATIONS, KEY_LEN, DIGEST);
@@ -69,7 +66,7 @@ function newSession(person, encKeyHex) {
 function getSession(token) { return sessions[token] || null; }
 function delSession(token) { delete sessions[token]; saveSessions(); }
 // 清理过期 session（24小时）
-setInterval(() => {
+const sessionCleanupTimer = setInterval(() => {
   const now = Date.now();
   let changed = false;
   for (const [k, v] of Object.entries(sessions)) {
@@ -77,11 +74,41 @@ setInterval(() => {
   }
   if (changed) saveSessions();
 }, 3600000);
+sessionCleanupTimer.unref();
 
 // ====== 中间件 ======
-app.use(express.json({ limit: '50mb' }));
-app.use(express.static(__dirname));
-app.use('/uploads', express.static(UPLOADS_DIR));
+app.set('trust proxy', 1);
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'same-origin');
+  res.setHeader('X-Frame-Options', 'DENY');
+  next();
+});
+app.use(express.json({ limit: '12mb' }));
+
+app.get('/healthz', (req, res) => res.json({ ok: true }));
+
+app.get('/api/access/status', (req, res) => {
+  res.json({ configured: Boolean(process.env.SITE_PASSWORD), authenticated: siteAccess.hasAccess(req) });
+});
+
+app.post('/api/access/login', (req, res) => {
+  if (!process.env.SITE_PASSWORD) return res.status(503).json({ error: '未配置 SITE_PASSWORD' });
+  if (!siteAccess.verifyPassword(req.body.password)) return res.status(403).json({ error: '访问密码错误' });
+  siteAccess.setAccessCookie(req, res);
+  res.json({ ok: true });
+});
+
+app.post('/api/access/logout', (req, res) => {
+  siteAccess.clearAccessCookie(res);
+  res.json({ ok: true });
+});
+
+app.use('/api', siteAccess.requireAccess);
+app.use('/uploads', siteAccess.requireAccess, express.static(UPLOADS_DIR, { index: false }));
+app.get('/index.css', (req, res) => res.sendFile(path.join(__dirname, 'index.css')));
+app.get('/index.js', (req, res) => res.sendFile(path.join(__dirname, 'index.js')));
 
 // ====== 密码系统 API ======
 
@@ -216,6 +243,7 @@ app.delete('/api/diary/:person/entries/:id', (req, res) => {
   const token = req.query.token;
   const session = getSession(token);
   if (!session) return res.status(401).json({ error: '未登录' });
+  if (session.person !== person) return res.status(403).json({ error: '无权限' });
 
   const diaryKey = 'diary-' + person;
   let entries = readJSON(diaryKey) || [];
@@ -260,9 +288,9 @@ app.get('/api/timeline', (req, res) => {
 
 app.post('/api/timeline', (req, res) => {
   const { date, title, desc } = req.body;
-  if (!date || !title) return res.status(400).json({ error: '需要日期和标题' });
+  if (!date || typeof title !== 'string' || !title.trim()) return res.status(400).json({ error: '需要日期和标题' });
   const data = readJSON('timeline') || [];
-  data.push({ id: uid(), date, title, desc: desc || '' });
+  data.push({ id: uid(), date, title: title.trim().slice(0, 100), desc: typeof desc === 'string' ? desc.trim().slice(0, 500) : '' });
   writeJSON('timeline', data);
   res.json({ ok: true });
 });
@@ -276,24 +304,30 @@ app.delete('/api/timeline/:id', (req, res) => {
 });
 
 // ====== 照片墙 API ======
+function parseImageData(base64Data) {
+  if (typeof base64Data !== 'string') return null;
+  const matches = base64Data.match(/^data:image\/(jpeg|png|webp|gif);base64,([A-Za-z0-9+/=]+)$/i);
+  if (!matches) return null;
+
+  const buffer = Buffer.from(matches[2], 'base64');
+  if (!buffer.length || buffer.length > MAX_UPLOAD_BYTES) return null;
+
+  const extension = matches[1].toLowerCase() === 'jpeg' ? 'jpg' : matches[1].toLowerCase();
+  return { buffer, extension };
+}
+
 app.get('/api/photos', (req, res) => {
   const data = readJSON('photos') || [];
   res.json(data);
 });
 
 app.post('/api/photos/upload', (req, res) => {
-  const { data: base64Data } = req.body;
-  if (!base64Data) return res.status(400).json({ error: 'no data' });
+  const image = parseImageData(req.body.data);
+  if (!image) return res.status(400).json({ error: '图片格式无效或超过 8MB' });
 
-  // base64 保存为文件
-  const matches = base64Data.match(/^data:image\/(\w+);base64,(.+)$/);
-  if (!matches) return res.status(400).json({ error: 'invalid image data' });
-
-  const ext = matches[1] === 'jpeg' ? 'jpg' : matches[1];
-  const fileName = uid() + '.' + ext;
+  const fileName = `${uid()}.${image.extension}`;
   const filePath = path.join(UPLOADS_DIR, fileName);
-
-  fs.writeFileSync(filePath, Buffer.from(matches[2], 'base64'));
+  fs.writeFileSync(filePath, image.buffer);
 
   const photos = readJSON('photos') || [];
   const photo = {
@@ -312,7 +346,7 @@ app.delete('/api/photos/:id', (req, res) => {
   let photos = readJSON('photos') || [];
   const photo = photos.find(p => p.id === id);
   if (photo) {
-    const filePath = path.join(__dirname, photo.url);
+    const filePath = path.join(UPLOADS_DIR, path.basename(photo.url));
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
   }
   photos = photos.filter(p => p.id !== id);
@@ -341,23 +375,22 @@ app.put('/api/settings', (req, res) => {
   if (hisAvatarData) { const u = saveAvatarFile(hisAvatarData, 'his'); if (u) finalHis = u; }
   if (herAvatarData) { const u = saveAvatarFile(herAvatarData, 'her'); if (u) finalHer = u; }
   const settings = {
-    hisNickname: hisNickname || '男生',
-    herNickname: herNickname || '女生',
+    hisNickname: typeof hisNickname === 'string' && hisNickname.trim() ? hisNickname.trim().slice(0, 30) : '男生',
+    herNickname: typeof herNickname === 'string' && herNickname.trim() ? herNickname.trim().slice(0, 30) : '女生',
     hisAvatar: finalHis,
     herAvatar: finalHer,
     loveDate: loveDate || '2026-04-06',
-    aiInstruction: aiInstruction || ''
+    aiInstruction: typeof aiInstruction === 'string' ? aiInstruction.slice(0, 5_000) : ''
   };
   writeJSON('settings', settings);
   res.json({ ok: true, settings });
 });
 
 function saveAvatarFile(base64Data, person) {
-  const m = base64Data.match(/^data:image\/(\w+);base64,(.+)$/);
-  if (!m) return null;
-  const ext = m[1] === 'jpeg' ? 'jpg' : m[1];
-  const name = 'avatar-' + person + '-' + uid() + '.' + ext;
-  fs.writeFileSync(path.join(UPLOADS_DIR, name), Buffer.from(m[2], 'base64'));
+  const image = parseImageData(base64Data);
+  if (!image) return null;
+  const name = `avatar-${person}-${uid()}.${image.extension}`;
+  fs.writeFileSync(path.join(UPLOADS_DIR, name), image.buffer);
   return '/uploads/' + name;
 }
 
@@ -438,9 +471,20 @@ app.post('/api/chat/conversations/:id/messages', async (req, res) => {
   }
 
   const { role, content } = req.body;
-  if (!role || !content) return res.status(400).json({ error: 'need role and content' });
+  if (role !== 'user' || typeof content !== 'string' || !content.trim()) return res.status(400).json({ error: '需要用户消息内容' });
 
-  conv.messages.push({ role, content });
+  if (shouldCompactConversation(conv.messages, conv.compaction)) {
+    try {
+      const through = getCompactedThrough(conv.compaction, conv.messages.length);
+      const summary = await compactConversation(conv.compaction?.summary || '', conv.messages.slice(through));
+      conv.compaction = { summary, through: conv.messages.length, updatedAt: localTime() };
+      writeJSON('chat-conversations', data);
+    } catch (error) {
+      console.error('Conversation compaction failed:', error.message);
+    }
+  }
+
+  conv.messages.push({ role, content: content.trim().slice(0, 10_000) });
   conv.updatedAt = localTime();
 
   // 自动生成标题（第一条用户消息）
@@ -450,93 +494,21 @@ app.post('/api/chat/conversations/:id/messages', async (req, res) => {
 
   writeJSON('chat-conversations', data);
 
-  // 如果是用户消息，调用 AI
-  if (role === 'user') {
-    const now = new Date();
-    const weekDays = ['日','一','二','三','四','五','六'];
-    const isLate = now.getHours() >= 1 && now.getHours() < 5;
-    const isSchoolDay = now.getDay() >= 1 && now.getDay() <= 4;
-    let suffix = `【当前时间：${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日 星期${weekDays[now.getDay()]} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}】`;
-    if (isLate) suffix += isSchoolDay ? '【凌晨了，明天是上学日/工作日，必须催用户快去睡】' : '【凌晨了，必须催用户快去睡】';
-    let genderNote = '';
-    if (conv.space === 'his') genderNote = '【当前用户是男生（男方）】';
-    else if (conv.space === 'her') genderNote = '【当前用户是女生（女方）】';
-    const tlData = readJSON("timeline") || [];
-    const tlStr = tlData.length ? tlData.map(t => t.date + " " + t.title).join("、") : "暂无";
-    const aiCfg = readJSON('settings') || {};
-    const userInst = (aiCfg.aiInstruction || '').trim();
-    const defaultContent = `【纪念日：${tlStr}】
-【背景：这是一对异地恋情侣，两人不在一起生活，主要通过聊天联系】
-你是恋爱军师/红娘，职责是帮这对情侣感情更好。
-
-严重警告(必须遵守)：
-- 绝不能说你是用户的恋人/对象/女朋友/男朋友
-- 绝不能用恋人语气说话
-- 禁止说"偷偷想我""捶捶脑袋""爱意陪伴""想我了吗""靠着我"等暧昧话
-- 禁止以女友/男友身份发言
-- 用户问性别就转移话题，不直接回答
-
-正确做法：
-- 用朋友/闺蜜/兄弟的语气，用"给你们""你俩""你们"
-- 用户敷衍(嗯/哦/啊/好/。。。) -> 适当换个话题，不用每次都讲故事
-- 不知道回什么 -> 分享恋爱故事或推荐小互动
-- 回复限100字内，加emoji
-- 绝不说自己是AI
-
-示例：
-用户"嗯"->"给你们分享个小故事~有一对情侣约定吵架不过夜……💕"
-用户"我是男是女"->"嘻嘻我猜你是来找你们家那位聊天的吧~今天想聊什么呀？🌸"
-用户"你是男朋友吗"->"我是你们的恋爱军师呀，帮你们感情更好的~有什么想问的吗？💪"
-用户"不知道说什么"->"给你们推荐一个增进感情的小游戏……✨"
-
-${genderNote || ''}
-${suffix}`;
-    const baseContent = userInst
-      ? `【纪念日：${tlStr}】
-${userInst}
-${genderNote || ''}
-${suffix}`
-      : defaultContent;
-    const systemPrompt = {
-      role: 'system',
-      content: baseContent,
-    };
-
-    try {
-      const apiRes = await fetch(process.env.API_ENDPOINT, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: process.env.API_MODEL,
-          messages: [{role:"user",content:systemPrompt.content},{role:"assistant",content:"好的，我记住了。"},...conv.messages],
-          max_tokens: 300,
-          temperature: 0.9,
-        }),
-      });
-
-      if (!apiRes.ok) {
-        const err = await apiRes.text();
-        console.error('AI API error:', err);
-        return res.json({ reply: null, error: 'upstream error' });
-      }
-
-      const apiData = await apiRes.json();
-      const reply = apiData.choices[0].message.content;
-
-      conv.messages.push({ role: 'assistant', content: reply });
-      conv.updatedAt = localTime();
-      writeJSON('chat-conversations', data);
-
-      res.json({ reply, conversationId: conv.id });
-    } catch (e) {
-      console.error('Proxy error:', e);
-      res.json({ reply: null, error: 'proxy error' });
-    }
-  } else {
-    res.json({ ok: true, conversationId: conv.id });
+  try {
+    const systemPrompt = buildSystemPrompt({
+      timeline: readJSON('timeline') || [],
+      settings: readJSON('settings') || {},
+      space: conv.space,
+    });
+    const through = getCompactedThrough(conv.compaction, conv.messages.length);
+    const reply = await requestChatReply(conv.messages.slice(through), systemPrompt, conv.compaction?.summary || '');
+    conv.messages.push({ role: 'assistant', content: reply });
+    conv.updatedAt = localTime();
+    writeJSON('chat-conversations', data);
+    res.json({ reply, conversationId: conv.id });
+  } catch (error) {
+    console.error('AI request failed:', error.message);
+    res.status(502).json({ reply: null, error: 'AI 服务暂时不可用，请稍后重试' });
   }
 });
 
@@ -561,95 +533,18 @@ app.put('/api/chat/conversations/:id', (req, res) => {
   res.json({ ok: true, title: conv.title });
 });
 
-// AI Chat 兼容旧端点
-app.post('/api/chat', async (req, res) => {
-  const tlData = readJSON("timeline") || [];
-  const tlStr = tlData.length ? tlData.map(t => t.date + " " + t.title).join("、") : "暂无";
-
-
-  const { messages, conversationId } = req.body;
-  if (!messages || !Array.isArray(messages)) return res.status(400).json({ error: 'invalid messages' });
-
-  // 找或创建对话
-  let data = readJSON('chat-conversations') || [];
-  let conv;
-  if (conversationId) {
-    conv = data.find(c => c.id === conversationId);
-  }
-  if (!conv) {
-    const now = localTime();
-    conv = { id: uid(), title: '对话 ' + now, messages: [], createdAt: now, updatedAt: now };
-    data.push(conv);
-  }
-
-  // 追加用户消息
-  const userMsg = messages[messages.length - 1];
-  if (userMsg && userMsg.role === 'user') {
-    conv.messages.push(userMsg);
-    if (conv.title.startsWith('对话 ') && userMsg.content) {
-      conv.title = userMsg.content.slice(0, 30) + (userMsg.content.length > 30 ? '...' : '');
-    }
-  }
-
-  const now = new Date();
-  const weekDays = ['日','一','二','三','四','五','六'];
-  const isLate = now.getHours() >= 1 && now.getHours() < 5;
-  const isSchoolDay = now.getDay() >= 1 && now.getDay() <= 4;
-  let suffix = `【当前时间：${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日 星期${weekDays[now.getDay()]} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}】`;
-  if (isLate) suffix += isSchoolDay ? '【凌晨了，明天是上学日/工作日，必须催用户快去睡】' : '【凌晨了，必须催用户快去睡】';
-  const aiCfg2 = readJSON('settings') || {};
-  const userInst2 = (aiCfg2.aiInstruction || '').trim();
-  const defContent = `【背景：这是一对异地恋情侣，两人不在一起生活，主要通过聊天联系】
-你是恋爱军师/红娘，帮情侣感情更好。
-严重警告：绝不能说你是用户的恋人/对象！绝不能用恋人语气说话！禁止"偷偷想我""靠着我"等暧昧话。
-用户敷衍(嗯/哦/啊)适当换个话题。用"你们""你俩"语气。不说自己是AI。
-${suffix}`;
-  const promptContent = userInst2 ? `${userInst2}\n${suffix}` : defContent;
-  const systemPrompt = {
-    role: 'system',
-    content: promptContent,
-  };
-
-  try {
-    const apiRes = await fetch(process.env.API_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.API_KEY}` },
-      body: JSON.stringify({
-        model: process.env.API_MODEL,
-        messages: [{role:"user",content:systemPrompt.content},{role:"assistant",content:"好的，我记住了。"},...conv.messages],
-          max_tokens: 300,
-        temperature: 0.9,
-      }),
-    });
-
-    if (!apiRes.ok) {
-      const err = await apiRes.text();
-      console.error('AI API error:', err);
-      return res.status(502).json({ error: 'upstream error' });
-    }
-
-    const apiData = await apiRes.json();
-    const reply = apiData.choices[0].message.content;
-    conv.messages.push({ role: 'assistant', content: reply });
-    conv.updatedAt = localTime();
-    writeJSON('chat-conversations', data);
-
-    res.json({ reply, conversationId: conv.id });
-  } catch (e) {
-    console.error('Proxy error:', e);
-    res.status(502).json({ error: 'proxy error' });
-  }
-});
-
 // ====== 静态文件服务 ======
+app.use('/api', (req, res) => res.status(404).json({ error: 'not found' }));
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`💕 情侣网站已启动: http://localhost:${PORT}`);
-  console.log(`📡 局域网访问: http://${getLANIP()}:${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`💕 情侣网站已启动: http://localhost:${PORT}`);
+    console.log(`📡 局域网访问: http://${getLANIP()}:${PORT}`);
+  });
+}
 
 function getLANIP() {
   const nets = require('os').networkInterfaces();
@@ -660,3 +555,5 @@ function getLANIP() {
   }
   return '0.0.0.0';
 }
+
+module.exports = { app };
