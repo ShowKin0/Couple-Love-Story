@@ -50,10 +50,11 @@ function shouldCompactConversation(messages, compaction) {
   return messages.length - getCompactedThrough(compaction, messages.length) >= COMPACTION_THRESHOLD;
 }
 
-async function requestCompletion(messages, { maxTokens, temperature }) {
-  const endpoint = process.env.API_ENDPOINT;
-  const apiKey = process.env.API_KEY;
-  const model = process.env.API_MODEL;
+async function requestCompletion(messages, { maxTokens, temperature }, provider = null) {
+  const source = provider && typeof provider === 'object' ? provider : process.env;
+  const endpoint = normalizeEndpoint(source.endpoint ?? source.API_ENDPOINT);
+  const apiKey = normalizeApiKey(source.apiKey ?? source.API_KEY);
+  const model = normalizeModel(source.model ?? source.API_MODEL);
   if (!endpoint || !apiKey || !model) throw new Error('AI 服务尚未配置');
 
   const timeoutMs = positiveInteger(process.env.AI_TIMEOUT_MS, DEFAULT_TIMEOUT_MS);
@@ -83,7 +84,42 @@ async function requestCompletion(messages, { maxTokens, temperature }) {
   return reply.trim();
 }
 
-async function compactConversation(previousSummary, messages) {
+// .env 中误写成 API_KEY==sk-... 或填写了完整 "Bearer sk-..." 很常见；
+// 在客户端统一清理，避免把多余字符发送给服务商导致 401。
+function normalizeApiKey(value) {
+  if (typeof value !== 'string') return '';
+  let key = value.trim();
+  while (/^[='\"]/.test(key)) key = key.slice(1).trim();
+  while (/[='\"]$/.test(key)) key = key.slice(0, -1).trim();
+  key = key.replace(/^bearer\s+/i, '').trim();
+  return key;
+}
+
+function normalizeModel(value) {
+  if (typeof value !== 'string') return '';
+  let model = value.trim();
+  while (/^[='\"]/.test(model)) model = model.slice(1).trim();
+  while (/[='\"]$/.test(model)) model = model.slice(0, -1).trim();
+  return model;
+}
+
+// 兼容 .env 中常见的填写方式：允许填写完整接口、/v1 基址或仅域名，自动修正重复协议。
+function normalizeEndpoint(value) {
+  if (typeof value !== 'string' || !value.trim()) return '';
+  let raw = value.trim().replace(/^['"]|['"]$/g, '').replace(/^\[.*\]\((https?:\/\/[^)]+)\)$/i, '$1').replace(/^https?:\/\/https?:\/\//i, 'https://');
+  if (!/^https?:\/\//i.test(raw)) raw = `https://${raw}`;
+  try {
+    const url = new URL(raw);
+    let pathname = url.pathname.replace(/\/{2,}/g, '/').replace(/\/$/, '');
+    if (!pathname || pathname === '/v1') pathname = `${pathname}/chat/completions`;
+    url.pathname = pathname;
+    return url.toString().replace(/\/$/, '');
+  } catch {
+    return '';
+  }
+}
+
+async function compactConversation(previousSummary, messages, provider = null) {
   const summaryMessages = [
     {
       role: 'system',
@@ -93,14 +129,14 @@ async function compactConversation(previousSummary, messages) {
   if (previousSummary) summaryMessages.push({ role: 'user', content: `此前摘要：\n${previousSummary}` });
   summaryMessages.push({ role: 'user', content: '请精炼以下新增对话记录：' }, ...messages);
 
-  return requestCompletion(summaryMessages, { maxTokens: 800, temperature: 0.2 });
+  return requestCompletion(summaryMessages, { maxTokens: 800, temperature: 0.2 }, provider);
 }
 
-async function requestChatReply(messages, systemPrompt, summary = '') {
+async function requestChatReply(messages, systemPrompt, summary = '', provider = null) {
   const context = [{ role: 'system', content: systemPrompt }];
   if (summary) context.push({ role: 'system', content: `以下是此前对话的精炼摘要，请作为既有事实和上下文使用：\n${summary}` });
   context.push(...messages);
-  return requestCompletion(context, { maxTokens: 300, temperature: 0.9 });
+  return requestCompletion(context, { maxTokens: 300, temperature: 0.9 }, provider);
 }
 
-module.exports = { buildSystemPrompt, compactConversation, getCompactedThrough, requestChatReply, shouldCompactConversation };
+module.exports = { buildSystemPrompt, compactConversation, getCompactedThrough, normalizeApiKey, normalizeEndpoint, normalizeModel, requestChatReply, shouldCompactConversation };

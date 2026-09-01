@@ -84,6 +84,10 @@
         <div class="clock-time" id="clockTime"></div>
       </div>
       <div class="hero-days" id="heroDays"></div>
+      <div class="daily-inspiration" id="dailyInspiration" aria-live="polite">
+        <div class="daily-inspiration-label">每日恋爱灵感 · 今天</div>
+        <div class="daily-inspiration-text">正在准备一句给你们的温柔话…</div>
+      </div>
       <div class="hero-announce" id="heroAnnounce"></div>
     </div>
     <div class="hero-floating">
@@ -100,7 +104,7 @@
   <section class="section timeline-section" id="timeline">
     <h2 class="section-title">📅 我们的时间线</h2>
     <div class="timeline-add">
-      <input type="date" id="tlDate" class="input" placeholder="日期">
+      <input type="text" id="tlDate" class="input" placeholder="日期（如 2026-08-31）" inputmode="numeric" pattern="\d{4}-\d{1,2}-\d{1,2}">
       <input type="text" id="tlTitle" class="input" placeholder="事件标题">
       <input type="text" id="tlDesc" class="input" placeholder="简短描述（可选）">
       <button class="btn btn-pink" id="tlAddBtn">➕ 添加纪念日</button>
@@ -133,6 +137,7 @@
         <div class="diary-content" id="diaryHisContent">
           <div class="diary-unlocked-bar">🔓 已解锁</div>
           <div class="diary-form" id="diaryHisForm">
+            <input type="text" class="input diary-date-input" id="diaryHisDate" placeholder="日期时间（如 2026-08-31 20:30）" inputmode="numeric">
             <textarea id="diaryHisInput" class="input diary-input" placeholder="今天想说什么..."></textarea>
             <div class="diary-media-preview" id="diaryHisMediaPreview"></div>
             <div class="diary-toolbar">
@@ -146,7 +151,7 @@
             <button class="btn btn-blue" id="diaryHisAdd">📝 写下心情</button>
           </div>
           <div class="diary-filter">
-            <input type="date" class="input diary-filter-input" id="diaryHisFilter" data-person="his">
+            <input type="text" class="input diary-filter-input" id="diaryHisFilter" data-person="his" placeholder="筛选日期（YYYY-MM-DD）" inputmode="numeric">
             <button class="btn btn-sm btn-blue diary-filter-clear" data-person="his" style="display:none">✕ 清除</button>
           </div>
           <div class="diary-list" id="diaryHisList"></div>
@@ -173,6 +178,7 @@
         <div class="diary-content" id="diaryHerContent">
           <div class="diary-unlocked-bar">🔓 已解锁</div>
           <div class="diary-form" id="diaryHerForm">
+            <input type="text" class="input diary-date-input" id="diaryHerDate" placeholder="日期时间（如 2026-08-31 20:30）" inputmode="numeric">
             <textarea id="diaryHerInput" class="input diary-input" placeholder="今天想说什么..."></textarea>
             <div class="diary-media-preview" id="diaryHerMediaPreview"></div>
             <div class="diary-toolbar">
@@ -186,7 +192,7 @@
             <button class="btn btn-pink" id="diaryHerAdd">📝 写下心情</button>
           </div>
           <div class="diary-filter">
-            <input type="date" class="input diary-filter-input" id="diaryHerFilter" data-person="her">
+            <input type="text" class="input diary-filter-input" id="diaryHerFilter" data-person="her" placeholder="筛选日期（YYYY-MM-DD）" inputmode="numeric">
             <button class="btn btn-sm btn-pink diary-filter-clear" data-person="her" style="display:none">✕ 清除</button>
           </div>
           <div class="diary-list" id="diaryHerList"></div>
@@ -302,6 +308,34 @@
         <label class="settings-label">🤖 AI 指令（留空=默认）</label>
         <textarea class="input settings-textarea" id="settingsAiInstruction" rows="5" placeholder="自定义 AI 的角色、语气和行为规则…"></textarea>
         <div class="settings-hint">时间、纪念日等信息会自动附加，无需写在指令里。</div>
+      </div>
+
+      <div class="settings-section settings-ai-provider">
+        <div class="settings-label-row">
+          <label class="settings-label">🔌 第三方中转</label>
+          <span class="settings-protected-badge">男生日记密码保护</span>
+        </div>
+        <div class="ai-provider-lock" id="aiProviderLock">
+          <div class="ai-provider-lock-icon">🔐</div>
+          <div>
+            <div class="ai-provider-lock-title">中转配置已锁定</div>
+            <div class="settings-hint">接口地址、模型和密钥仅保存在服务器，不会显示完整密钥。</div>
+          </div>
+          <button class="btn btn-sm btn-pink" id="aiProviderUnlock" type="button">输入密码</button>
+        </div>
+        <div class="ai-provider-form" id="aiProviderForm" hidden>
+          <label class="settings-sub-label" for="settingsAiEndpoint">接口地址</label>
+          <input type="text" class="input settings-input" id="settingsAiEndpoint" placeholder="https://中转服务/v1/chat/completions" autocomplete="off">
+          <label class="settings-sub-label" for="settingsAiModel">模型名称</label>
+          <input type="text" class="input settings-input" id="settingsAiModel" placeholder="例如 deepseek-chat" autocomplete="off">
+          <label class="settings-sub-label" for="settingsAiKey">API 密钥</label>
+          <input type="password" class="input settings-input" id="settingsAiKey" placeholder="留空则保持当前密钥" autocomplete="new-password">
+          <div class="settings-hint" id="settingsAiKeyHint">当前未配置中转密钥</div>
+          <div class="ai-provider-actions">
+            <button class="btn btn-pink" id="settingsAiProviderSave" type="button">保存中转配置</button>
+            <button class="btn settings-cancel" id="settingsAiProviderReset" type="button">改用 .env 配置</button>
+          </div>
+        </div>
       </div>
 
       <div class="settings-actions">

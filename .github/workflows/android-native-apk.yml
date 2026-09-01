@@ -1,0 +1,46 @@
+name: 构建 LoveStory 原生 APK
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-native-android:
+    runs-on: ubuntu-latest
+    env:
+      APP_URL: ${{ secrets.APP_URL }}
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 配置 JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: 配置 Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-37 build-tools;36.0.0'
+
+      - name: 配置原生 API 地址
+        working-directory: android-app
+        run: |
+          test -n "$APP_URL"
+          printf 'sdk.dir=%s\nlove.api.baseUrl=%s\n' "$ANDROID_SDK_ROOT" "$APP_URL" > local.properties
+
+      - name: 构建调试 APK
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.0'
+
+      - name: 编译 APK
+        working-directory: android-app
+        run: gradle assembleDebug --no-daemon
+
+      - name: 上传原生 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: LoveStory-native-debug-apk
+          path: android-app/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error

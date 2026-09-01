@@ -64,6 +64,52 @@ function initSettings() {
 
   // 头像暂存数据
   const pendingAvatar = { his: null, her: null };
+  let aiSettingsToken = null;
+
+  function setAiProviderLocked(locked) {
+    const lock = $('#aiProviderLock');
+    const form = $('#aiProviderForm');
+    if (lock) lock.hidden = !locked;
+    if (form) form.hidden = locked;
+  }
+
+  function closeSettings() {
+    overlay.style.display = 'none';
+    // 每次重新进入中转设置都重新验证，token 只在当前设置弹窗内存活。
+    aiSettingsToken = null;
+    setAiProviderLocked(true);
+  }
+
+  async function loadAiProvider() {
+    if (!aiSettingsToken) return;
+    try {
+      const data = await api('GET', `/api/ai/provider?token=${encodeURIComponent(aiSettingsToken)}`);
+      $('#settingsAiEndpoint').value = data.endpoint || '';
+      $('#settingsAiModel').value = data.model || '';
+      $('#settingsAiKey').value = '';
+      $('#settingsAiKeyHint').textContent = data.apiKeyMasked
+        ? `当前密钥：${data.apiKeyMasked}（留空保持不变） · 来源：${data.source === 'custom' ? '第三方中转' : '.env'}`
+        : '当前未配置可用的 AI 密钥';
+      setAiProviderLocked(false);
+    } catch (error) {
+      aiSettingsToken = null;
+      setAiProviderLocked(true);
+      alert(error?.message || '中转配置加载失败');
+    }
+  }
+
+  async function unlockAiProvider() {
+    const password = await showPasswordPrompt('解锁第三方中转设置', '请输入男生日记密码');
+    if (password === null) return;
+    if (!password) return;
+    try {
+      const data = await api('POST', '/api/ai/provider/verify', { password });
+      aiSettingsToken = data.token;
+      await loadAiProvider();
+    } catch (error) {
+      alert(error?.message || '密码错误');
+    }
+  }
 
   // 头像预览更新
   function updatePreview(person) {
@@ -110,14 +156,57 @@ function initSettings() {
       updatePreview('his');
       updatePreview('her');
     }
+    aiSettingsToken = null;
+    setAiProviderLocked(true);
     overlay.style.display = 'flex';
   }
 
   $$('[data-open-settings]').forEach(button => button.addEventListener('click', openSettings));
 
-  $('#settingsCancel').addEventListener('click', () => { overlay.style.display = 'none'; });
-  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.style.display = 'none'; });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') overlay.style.display = 'none'; });
+  $('#settingsCancel').addEventListener('click', closeSettings);
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeSettings(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && overlay.style.display !== 'none') closeSettings(); });
+
+  const aiProviderUnlockButton = $('#aiProviderUnlock');
+  const aiProviderSaveButton = $('#settingsAiProviderSave');
+  const aiProviderResetButton = $('#settingsAiProviderReset');
+  if (aiProviderUnlockButton) aiProviderUnlockButton.addEventListener('click', unlockAiProvider);
+  if (aiProviderSaveButton) aiProviderSaveButton.addEventListener('click', async () => {
+    if (!aiSettingsToken) return unlockAiProvider();
+    const endpoint = $('#settingsAiEndpoint').value.trim();
+    const model = $('#settingsAiModel').value.trim();
+    const apiKey = $('#settingsAiKey').value.trim();
+    try {
+      const data = await api('PUT', '/api/ai/provider', { token: aiSettingsToken, endpoint, model, apiKey });
+      $('#settingsAiKey').value = '';
+      $('#settingsAiKeyHint').textContent = data.provider.apiKeyMasked
+        ? `当前密钥：${data.provider.apiKeyMasked}（留空保持不变） · 来源：第三方中转`
+        : '当前未配置可用的 AI 密钥';
+      alert('第三方中转配置已保存');
+    } catch (error) {
+      if (/(401|403|需要男生日记密码)/.test(String(error?.message || ''))) {
+        aiSettingsToken = null;
+        setAiProviderLocked(true);
+      }
+      alert(error?.message || '中转配置保存失败');
+    }
+  });
+  if (aiProviderResetButton) aiProviderResetButton.addEventListener('click', async () => {
+    if (!aiSettingsToken) return unlockAiProvider();
+    if (!await showConfirm('清除第三方中转配置，改用 .env 中的 AI 设置？')) return;
+    try {
+      const data = await api('PUT', '/api/ai/provider', { token: aiSettingsToken, clear: true });
+      $('#settingsAiEndpoint').value = data.provider.endpoint || '';
+      $('#settingsAiModel').value = data.provider.model || '';
+      $('#settingsAiKey').value = '';
+      $('#settingsAiKeyHint').textContent = data.provider.apiKeyMasked
+        ? `当前密钥：${data.provider.apiKeyMasked}（来源：.env）`
+        : '当前未配置可用的 AI 密钥';
+      alert('已改用 .env 配置');
+    } catch (error) {
+      alert(error?.message || '恢复 .env 配置失败');
+    }
+  });
 
   $('#settingsSave').addEventListener('click', async () => {
     const hisName = $('#settingsHisName').value.trim() || '男生';
@@ -139,7 +228,7 @@ function initSettings() {
       appSettings = res.settings;
       applySettings(res.settings);
       updateLoveDays();
-      overlay.style.display = 'none';
+      closeSettings();
     } catch { alert('保存失败'); }
   });
 }
@@ -210,6 +299,15 @@ function unlockDiary(person) {
   loadDiary(person);
 }
 
+function handleDiaryAuthExpired(person) {
+  TOKENS[person] = null;
+  const lock = $(`#diary${cap(person)}Lock`);
+  const content = $(`#diary${cap(person)}Content`);
+  if (lock) lock.classList.remove('unlocked');
+  if (content) content.classList.remove('unlocked');
+  checkStatus(person);
+}
+
 // ====== 自定义对话框 ======
 const dialogContainer = document.getElementById('dialogContainer') || (() => {
   const d = document.createElement('div'); d.id = 'dialogContainer'; d.className = 'dialog-overlay';
@@ -251,6 +349,24 @@ function showPrompt(title, placeholder, defaultValue = '') {
     setTimeout(() => inp.focus(), 100);
     inp.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('dy').click(); });
     document.getElementById('dy').onclick = () => { box.style.display = 'none'; resolve(inp.value.trim()); };
+    document.getElementById('dn').onclick = () => { box.style.display = 'none'; resolve(null); };
+  });
+}
+
+function showPasswordPrompt(title, placeholder) {
+  return new Promise(resolve => {
+    const box = dialogContainer;
+    document.getElementById('dt').textContent = title || '请输入密码';
+    document.getElementById('db').innerHTML =
+      `<input type="password" class="dlg-input" id="di" placeholder="${esc(placeholder)}" autocomplete="current-password">`;
+    document.getElementById('da').innerHTML =
+      `<button class="dlg-btn dlg-primary" id="dy">确认</button>
+       <button class="dlg-btn dlg-cancel" id="dn">取消</button>`;
+    box.style.display = 'flex';
+    const input = document.getElementById('di');
+    setTimeout(() => input.focus(), 100);
+    input.addEventListener('keydown', event => { if (event.key === 'Enter') document.getElementById('dy').click(); });
+    document.getElementById('dy').onclick = () => { box.style.display = 'none'; resolve(input.value.trim()); };
     document.getElementById('dn').onclick = () => { box.style.display = 'none'; resolve(null); };
   });
 }
@@ -403,8 +519,20 @@ function buildContent(person) {
   return JSON.stringify({ text, images: mediaData.images, audio: mediaData.audio });
 }
 
+function diaryDateValue(person) {
+  const input = $(`#diary${cap(person)}Date`);
+  const value = input ? input.value.trim() : '';
+  return value || localTime();
+}
+
+function validDiaryDate(value) {
+  return /^\d{4}-\d{1,2}-\d{1,2}(?:[ T]\d{1,2}:\d{2})?$/.test(value);
+}
+
 // 清空日记表单
 function resetDiaryForm(person) {
+  const date = $(`#diary${cap(person)}Date`);
+  if (date) date.value = localTime();
   $(`#diary${cap(person)}Input`).value = '';
   $(`#diary${cap(person)}MediaPreview`).innerHTML = '';
   diaryMedia[person] = { images: [], audio: [] };
@@ -452,13 +580,22 @@ async function loadDiary(person) {
           const data = JSON.parse(entry.content);
           if (type === 'image') data.images.splice(idx, 1);
           else data.audio.splice(idx, 1);
-          await api('PUT', `/api/diary/${person}/entries/${eid}`, { token: TOKENS[person], content: JSON.stringify(data) });
+          await api('PUT', `/api/diary/${person}/entries/${eid}`, { token: TOKENS[person], content: JSON.stringify(data), time: entry.time.replace(' ✏️', '') });
           loadDiary(person);
         } catch { alert('删除失败'); }
       });
     });
     initAudioPlayers();
-  } catch {}
+  } catch (error) {
+    const list = $(`#diary${cap(person)}List`);
+    if (!list) return;
+    if (/(401|403|未登录|无权限)/.test(String(error?.message || ''))) {
+      handleDiaryAuthExpired(person);
+      list.innerHTML = '';
+    } else {
+      list.innerHTML = '<div class="diary-load-error">日记加载失败，请稍后重试</div>';
+    }
+  }
 }
 
 // 编辑日记
@@ -504,6 +641,7 @@ async function editEntry(person, id) {
 
   contentEl.innerHTML = `
     <div class="de-edit-area">
+      <input type="text" class="input diary-date-input de-edit-date" value="${esc((entry.querySelector('.de-time')?.textContent || localTime()).replace(' ✏️', ''))}" placeholder="日期时间（如 2026-08-31 20:30）" inputmode="numeric">
       <textarea class="input diary-input de-edit-text" rows="3">${esc(origContent.text || '')}</textarea>
       <div class="de-edit-media"></div>
       <div class="diary-toolbar">
@@ -581,13 +719,18 @@ async function editEntry(person, id) {
   contentEl.querySelector('.de-edit-save').addEventListener('click', async () => {
     const text = contentEl.querySelector('.de-edit-text').value.trim();
     if (!text && !editMedia.images.length && !editMedia.audio.length) { alert('内容不能为空'); return; }
+    const time = contentEl.querySelector('.de-edit-date').value.trim() || localTime();
+    if (!validDiaryDate(time)) { alert('日期格式应为 YYYY-MM-DD HH:mm'); return; }
     const content = JSON.stringify({ text, images: editMedia.images, audio: editMedia.audio });
     try {
-      const d = await api('PUT', `/api/diary/${person}/entries/${id}`, { token: TOKENS[person], content });
+      const d = await api('PUT', `/api/diary/${person}/entries/${id}`, { token: TOKENS[person], content, time });
       contentEl.innerHTML = renderContent(content, id);
       const te = entry.querySelector('.de-time');
       if (te) te.textContent = d.time;
-    } catch { alert('保存失败'); }
+    } catch (error) {
+      if (/(401|403|未登录|无权限)/.test(String(error?.message || ''))) handleDiaryAuthExpired(person);
+      alert(`保存失败：${error?.message || '请稍后重试'}`);
+    }
   });
 
   // 取消
@@ -607,11 +750,16 @@ async function addEntry(person) {
   if (!token) { alert('请先解锁'); return; }
   const content = buildContent(person);
   if (!content) { alert('写点什么吧～'); return; }
+  const time = diaryDateValue(person);
+  if (!validDiaryDate(time)) { alert('日期格式应为 YYYY-MM-DD HH:mm'); return; }
   try {
-    await api('POST', `/api/diary/${person}/entries`, { token, content });
+    await api('POST', `/api/diary/${person}/entries`, { token, content, time });
     resetDiaryForm(person);
     loadDiary(person);
-  } catch { alert('保存失败'); }
+  } catch (error) {
+    if (/(401|403|未登录|无权限)/.test(String(error?.message || ''))) handleDiaryAuthExpired(person);
+    alert(`保存失败：${error?.message || '请稍后重试'}`);
+  }
 }
 
 // ====== 日记多媒体 ======
@@ -764,8 +912,21 @@ function updateHeroAnnouncements(items) {
   container.innerHTML = upcoming.map(it => {
     const cls = it.days <= 3 ? 'hero-announce-item urgent' : 'hero-announce-item';
     const label = it.days === 0 ? '今天' : it.days + '天后';
-    return `<div class="${cls}" onclick="document.getElementById('timeline').scrollIntoView({behavior:'smooth'})">💕 ${label}是「${esc(it.title)}」❤️</div>`;
+    return `<div class="${cls}" onclick="document.getElementById('timeline').scrollIntoView({behavior:'smooth'})"><span class="announce-title">${esc(it.title)}</span><span class="announce-countdown">${label} · 纪念日快乐</span><span class="announce-date">${esc(it.date)}</span></div>`;
   }).join('');
+}
+
+// 每日内容由服务端按上海时区缓存；页面只读取，不在客户端重复生成。
+async function loadDailyInspiration() {
+  const box = $('#dailyInspiration');
+  if (!box) return;
+  const textEl = box.querySelector('.daily-inspiration-text');
+  try {
+    const data = await api('GET', '/api/daily-inspiration');
+    textEl.textContent = `“${data.text || '今天也要好好相爱'}”`;
+  } catch {
+    textEl.textContent = '“把普通的日子过得浪漫一点，就是爱情。”';
+  }
 }
 
 // ====== 粒子 ======
@@ -851,7 +1012,7 @@ async function renderTimeline() {
 function initTL() {
   $('#tlAddBtn').addEventListener('click', async () => {
     const date = $('#tlDate').value, title = $('#tlTitle').value.trim(), desc = $('#tlDesc').value.trim();
-    if (!date || !title) { alert('请填写日期和标题～'); return; }
+    if (!/^\d{4}-\d{1,2}-\d{1,2}$/.test(date) || !title) { alert('请填写正确日期（YYYY-MM-DD）和标题～'); return; }
     try {
       await api('POST', '/api/timeline', { date, title, desc });
       renderTimeline();
@@ -1131,11 +1292,16 @@ function initSiteAccessGate() {
 
 async function initApp() {
   await loadSettings();
+  ['his', 'her'].forEach(person => {
+    const date = $(`#diary${cap(person)}Date`);
+    if (date && !date.value) date.value = localTime();
+  });
   createParticles();
   updateClock();
   setInterval(updateClock, 1000);
   initNav();
   initScrollAnim();
+  loadDailyInspiration();
   initTL();
   renderTimeline();
 

@@ -315,8 +315,10 @@ body {
 .diary-content.unlocked { display: block; }
 
 .diary-form { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+.diary-date-input { min-height: 42px; }
 .diary-input { resize: vertical; min-height: 80px; }
 .diary-list { display: flex; flex-direction: column; gap: 12px; max-height: 500px; overflow-y: auto; }
+.diary-load-error { color: var(--text-light); text-align: center; padding: 18px 12px; border: 1px dashed rgba(220, 91, 120, .35); border-radius: 12px; background: rgba(255, 248, 250, .72); }
 
 .diary-entry {
   background: var(--bg); border-radius: var(--radius-sm);
@@ -812,9 +814,19 @@ body {
   display: block; font-size: 0.9rem; font-weight: 600;
   margin-bottom: 6px; color: var(--text);
 }
+.settings-label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.settings-label-row .settings-label { margin-bottom: 6px; }
+.settings-protected-badge { color: var(--pink-dark); background: #FFF0F4; border-radius: 999px; padding: 4px 8px; font-size: .68rem; white-space: nowrap; }
 .settings-input { width: 100%; box-sizing: border-box; text-align: center; font-size: 1rem; }
 .settings-textarea { width: 100%; box-sizing: border-box; resize: vertical; font-size: 0.88rem; min-height: 80px; text-align: left; line-height: 1.5; }
 .settings-hint { font-size: 0.78rem; color: var(--text-light); margin-top: 4px; line-height: 1.4; }
+.ai-provider-lock { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 12px; border: 1px dashed #F0C6D1; border-radius: 14px; background: linear-gradient(135deg, #FFF8FA, #FFF2F6); }
+.ai-provider-lock-icon { font-size: 1.45rem; }
+.ai-provider-lock-title { color: var(--text); font-size: .88rem; font-weight: 700; }
+.ai-provider-form { padding: 13px 12px 2px; border: 1px solid #F4DCE3; border-radius: 14px; background: #FFFCFD; }
+.settings-sub-label { display: block; margin: 10px 0 5px; color: var(--text); font-size: .78rem; font-weight: 600; }
+.ai-provider-actions { display: flex; gap: 8px; margin-top: 14px; }
+.ai-provider-actions .btn { flex: 1; justify-content: center; min-height: 42px; font-size: .8rem; }
 .settings-actions { display: flex; gap: 10px; margin-top: 24px; }
 .settings-actions .btn { flex: 1; justify-content: center; }
 .settings-cancel { background: #F0F0F0; color: var(--text); }
@@ -933,12 +945,17 @@ body {
 /* ===== 首页纪念日提醒 ===== */
 .hero-announce { margin-top: 20px; }
 .hero-announce-item {
-  display: inline-block;
+  display: inline-flex;
+  flex-direction: column;
+  vertical-align: top;
+  min-width: 180px;
+  max-width: min(100%, 280px);
+  text-align: left;
   cursor: pointer;
   background: linear-gradient(135deg, #FFF0F3, #FFE4E8);
   border: 2px solid var(--pink);
   border-radius: 20px;
-  padding: 10px 24px;
+  padding: 13px 17px;
   margin: 4px;
   font-size: 0.95rem;
   font-weight: 600;
@@ -946,11 +963,41 @@ body {
   animation: announcePop 0.6s ease;
   box-shadow: 0 2px 12px rgba(255, 107, 107, 0.2);
 }
+.hero-announce-item .announce-title { color: var(--ink); font-size: .98rem; font-weight: 700; line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hero-announce-item .announce-countdown { margin-top: 5px; font-size: .82rem; color: var(--pink-dark); }
+.hero-announce-item .announce-date { margin-top: 3px; font-size: .72rem; color: var(--text-light); }
 .hero-announce-item.urgent {
   background: linear-gradient(135deg, #FFE4E8, #FFD0D6);
   border-color: #FF6B6B;
   color: #E04040;
   animation: announcePop 0.6s ease, urgentPulse 1.5s ease-in-out infinite;
+}
+
+/* ===== 每日恋爱灵感 ===== */
+.daily-inspiration {
+  width: min(100%, 520px);
+  margin: 24px auto 0;
+  padding: 16px 20px;
+  box-sizing: border-box;
+  text-align: left;
+  background: linear-gradient(135deg, #FFF7ED, #FFF0E4);
+  border: 1px solid rgba(242, 179, 111, .45);
+  border-radius: 18px;
+  box-shadow: 0 8px 24px rgba(199, 129, 64, .12);
+}
+.daily-inspiration-label {
+  color: #B86A32;
+  font-size: .82rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  margin-bottom: 7px;
+}
+.daily-inspiration-text {
+  color: var(--ink);
+  font-size: 1rem;
+  line-height: 1.65;
+  white-space: pre-line;
+  min-height: 1.65em;
 }
 
 /* ===== App 优先小屏布局 ===== */
@@ -1022,7 +1069,7 @@ body {
   .clock-time { font-size: clamp(1.8rem, 8vw, 2.5rem); }
   .hero-days { margin-top: 12px; letter-spacing: 0; }
   .hero-announce { margin-top: 16px; }
-  .hero-announce-item { display: block; width: 100%; margin: 6px 0; padding: 11px 14px; }
+  .hero-announce-item { display: flex; width: 100%; max-width: none; min-width: 0; margin: 6px 0; padding: 11px 14px; }
 
   .section { padding: 48px 18px; scroll-margin-top: 12px; }
   .section-title { margin-bottom: 24px; font-size: 1.45rem; }
@@ -1094,6 +1141,9 @@ body {
   .settings-actions .btn { min-height: 48px; }
   .settings-avatar-actions { flex: 1; flex-direction: row; }
   .settings-avatar-actions .btn { min-height: 42px; justify-content: center; }
+  .ai-provider-lock { grid-template-columns: auto 1fr; }
+  .ai-provider-lock > button { grid-column: 2; width: 100%; justify-content: center; }
+  .ai-provider-actions { flex-direction: column; }
 
   .modal { padding: max(16px, env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom)); }
   .modal-img { max-width: 100%; max-height: 72svh; }

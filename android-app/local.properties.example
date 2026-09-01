@@ -1,0 +1,3 @@
+## Copy to local.properties on the build computer. This file is ignored by Git.
+sdk.dir=C\\:\\Users\\YOUR_USER\\AppData\\Local\\Android\\Sdk
+love.api.baseUrl=https\\://your-domain.example

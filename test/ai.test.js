@@ -1,6 +1,18 @@
 const assert = require('assert/strict');
 const test = require('node:test');
-const { buildSystemPrompt, compactConversation, requestChatReply, shouldCompactConversation } = require('../services/ai');
+const { buildSystemPrompt, compactConversation, normalizeApiKey, normalizeEndpoint, normalizeModel, requestChatReply, shouldCompactConversation } = require('../services/ai');
+
+test('AI endpoint accepts a host or repairs a duplicated protocol', () => {
+  assert.equal(normalizeEndpoint('api.deepseek.com'), 'https://api.deepseek.com/chat/completions');
+  assert.equal(normalizeEndpoint('https://https://us-api.example.com'), 'https://us-api.example.com/chat/completions');
+  assert.equal(normalizeEndpoint('https://api.example.com/v1'), 'https://api.example.com/v1/chat/completions');
+});
+
+test('AI credentials tolerate common .env formatting mistakes', () => {
+  assert.equal(normalizeApiKey('=="Bearer sk-test"'), 'sk-test');
+  assert.equal(normalizeApiKey(' sk-test '), 'sk-test');
+  assert.equal(normalizeModel('="deepseek-chat"'), 'deepseek-chat');
+});
 
 test('AI client sends the complete conversation history', async () => {
   const originalFetch = global.fetch;
@@ -28,6 +40,28 @@ test('AI client sends the complete conversation history', async () => {
   } finally {
     global.fetch = originalFetch;
     process.env = originalEnv;
+  }
+});
+
+test('AI client can use a runtime provider configured outside .env', async () => {
+  const originalFetch = global.fetch;
+  let request;
+  global.fetch = async (url, options) => {
+    request = { url, options };
+    return { ok: true, json: async () => ({ choices: [{ message: { content: '中转正常' } }] }) };
+  };
+  try {
+    const reply = await requestChatReply([{ role: 'user', content: '测试' }], '系统', '', {
+      endpoint: 'https://relay.example/v1',
+      model: 'relay-model',
+      apiKey: 'relay-key',
+    });
+    assert.equal(reply, '中转正常');
+    assert.equal(request.url, 'https://relay.example/v1/chat/completions');
+    assert.equal(request.options.headers.Authorization, 'Bearer relay-key');
+    assert.equal(JSON.parse(request.options.body).model, 'relay-model');
+  } finally {
+    global.fetch = originalFetch;
   }
 });
 

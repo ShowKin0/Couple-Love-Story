@@ -58,6 +58,83 @@ test('site gate protects APIs and prevents static data exposure', async () => {
     assert.equal(updatedSettings.settings.hisAvatar, '👨');
     assert.equal(updatedSettings.settings.herAvatar, '🌷');
 
+    const setDiaryPassword = await fetch(`${baseUrl}/api/diary/his/set-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      body: JSON.stringify({ password: 'diary-test-password' }),
+    });
+    assert.equal(setDiaryPassword.status, 200);
+    const diarySession = await setDiaryPassword.json();
+    assert.ok(diarySession.token);
+
+    const aiNoAuth = await fetch(`${baseUrl}/api/ai/provider`, { headers: { Cookie: cookie } });
+    assert.equal(aiNoAuth.status, 403);
+    const aiWrongPassword = await fetch(`${baseUrl}/api/ai/provider/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      body: JSON.stringify({ password: 'wrong-password' }),
+    });
+    assert.equal(aiWrongPassword.status, 403);
+    const aiVerify = await fetch(`${baseUrl}/api/ai/provider/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      body: JSON.stringify({ password: 'diary-test-password' }),
+    });
+    assert.equal(aiVerify.status, 200);
+    const aiSession = await aiVerify.json();
+    const saveProvider = await fetch(`${baseUrl}/api/ai/provider`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      body: JSON.stringify({
+        token: aiSession.token,
+        endpoint: 'https://relay.example/v1',
+        model: 'relay-model',
+        apiKey: 'relay-secret-key',
+      }),
+    });
+    assert.equal(saveProvider.status, 200);
+    const provider = await saveProvider.json();
+    assert.equal(provider.provider.source, 'custom');
+    assert.equal(provider.provider.apiKeyMasked, 'rela••••-key');
+    assert.doesNotMatch(JSON.stringify(provider), /relay-secret-key/);
+
+    const clearProvider = await fetch(`${baseUrl}/api/ai/provider`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      body: JSON.stringify({ token: aiSession.token, clear: true }),
+    });
+    assert.equal(clearProvider.status, 200);
+    assert.equal((await clearProvider.json()).provider.source, 'env');
+
+    const ordinarySettings = await fetch(`${baseUrl}/api/settings`, { headers: { Cookie: cookie } });
+    assert.doesNotMatch(await ordinarySettings.text(), /relay-secret-key/);
+
+    const addDiary = await fetch(`${baseUrl}/api/diary/his/entries`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      body: JSON.stringify({
+        token: diarySession.token,
+        content: JSON.stringify({ text: '测试日记', images: [], audio: [] }),
+        time: '2026-09-01 20:30',
+      }),
+    });
+    assert.equal(addDiary.status, 200);
+    const diaryEntry = await addDiary.json();
+    assert.ok(diaryEntry.id);
+
+    const diaryList = await fetch(`${baseUrl}/api/diary/his/entries?token=${diarySession.token}`, { headers: { Cookie: cookie } });
+    assert.equal(diaryList.status, 200);
+    const entries = await diaryList.json();
+    assert.equal(entries[0].content, JSON.stringify({ text: '测试日记', images: [], audio: [] }));
+
+    const malformed = await fetch(`${baseUrl}/api/diary/his/entries`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      body: '{',
+    });
+    assert.equal(malformed.status, 400);
+    assert.equal((await malformed.json()).error, '请求数据格式无效');
+
     const dataPath = await fetch(`${baseUrl}/data/passwords.json`);
     assert.match(dataPath.headers.get('content-type'), /^text\/html/i);
   } finally {

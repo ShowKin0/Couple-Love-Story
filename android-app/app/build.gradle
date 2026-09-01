@@ -1,0 +1,38 @@
+plugins {
+    id 'com.android.application'
+}
+
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withInputStream { localProperties.load(it) }
+}
+def apiBaseUrl = localProperties.getProperty('love.api.baseUrl', 'https://example.invalid')
+
+android {
+    namespace 'top.showkin.lovestory'
+    compileSdk 37
+
+    defaultConfig {
+        applicationId 'top.showkin.lovestory'
+        minSdk 26
+        targetSdk 37
+        versionCode 1
+        versionName '1.0'
+        buildConfigField 'String', 'API_BASE_URL', '"' + apiBaseUrl.replace('"', '\\"') + '"'
+    }
+
+    buildFeatures { buildConfig true }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

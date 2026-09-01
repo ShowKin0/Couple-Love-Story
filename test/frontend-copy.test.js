@@ -14,3 +14,12 @@ test('love-story labels consistently render his name before her name', () => {
   assert.match(html, /男生和女生的爱情故事/);
   assert.doesNotMatch(html, /女生和男生的爱情故事/);
 });
+
+test('third-party AI settings are password-gated and do not expose a raw key field value', () => {
+  const script = fs.readFileSync(path.join(rootDir, 'index.js'), 'utf8');
+  const html = fs.readFileSync(path.join(rootDir, 'index.html'), 'utf8');
+  assert.match(html, /id="aiProviderUnlock"/);
+  assert.match(html, /type="password"[^>]+id="settingsAiKey"/);
+  assert.match(script, /\/api\/ai\/provider\/verify/);
+  assert.match(script, /encodeURIComponent\(aiSettingsToken\)/);
+});
