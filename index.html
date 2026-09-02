@@ -85,7 +85,7 @@
       </div>
       <div class="hero-days" id="heroDays"></div>
       <div class="daily-inspiration" id="dailyInspiration" aria-live="polite">
-        <div class="daily-inspiration-label">每日恋爱灵感 · 今天</div>
+        <div class="daily-inspiration-label">每日恋爱灵感</div>
         <div class="daily-inspiration-text">正在准备一句给你们的温柔话…</div>
       </div>
       <div class="hero-announce" id="heroAnnounce"></div>
@@ -104,7 +104,7 @@
   <section class="section timeline-section" id="timeline">
     <h2 class="section-title">📅 我们的时间线</h2>
     <div class="timeline-add">
-      <input type="text" id="tlDate" class="input" placeholder="日期（如 2026-08-31）" inputmode="numeric" pattern="\d{4}-\d{1,2}-\d{1,2}">
+      <input type="date" id="tlDate" class="input" aria-label="纪念日日期">
       <input type="text" id="tlTitle" class="input" placeholder="事件标题">
       <input type="text" id="tlDesc" class="input" placeholder="简短描述（可选）">
       <button class="btn btn-pink" id="tlAddBtn">➕ 添加纪念日</button>
@@ -137,8 +137,10 @@
         <div class="diary-content" id="diaryHisContent">
           <div class="diary-unlocked-bar">🔓 已解锁</div>
           <div class="diary-form" id="diaryHisForm">
-            <input type="text" class="input diary-date-input" id="diaryHisDate" placeholder="日期时间（如 2026-08-31 20:30）" inputmode="numeric">
+            <input type="text" class="input diary-title-input" id="diaryHisTitle" placeholder="标题（例如：今天的我们）" maxlength="80">
+            <input type="datetime-local" class="input diary-date-input" id="diaryHisDate" aria-label="日记日期时间">
             <textarea id="diaryHisInput" class="input diary-input" placeholder="今天想说什么..."></textarea>
+            <div class="diary-inline-hint">图片会插入当前光标位置，可在图片前后继续编辑文字</div>
             <div class="diary-media-preview" id="diaryHisMediaPreview"></div>
             <div class="diary-toolbar">
               <button class="btn btn-sm btn-blue diary-img-btn" data-person="his">📷 图片</button>
@@ -178,8 +180,10 @@
         <div class="diary-content" id="diaryHerContent">
           <div class="diary-unlocked-bar">🔓 已解锁</div>
           <div class="diary-form" id="diaryHerForm">
-            <input type="text" class="input diary-date-input" id="diaryHerDate" placeholder="日期时间（如 2026-08-31 20:30）" inputmode="numeric">
+            <input type="text" class="input diary-title-input" id="diaryHerTitle" placeholder="标题（例如：今天的我们）" maxlength="80">
+            <input type="datetime-local" class="input diary-date-input" id="diaryHerDate" aria-label="日记日期时间">
             <textarea id="diaryHerInput" class="input diary-input" placeholder="今天想说什么..."></textarea>
+            <div class="diary-inline-hint">图片会插入当前光标位置，可在图片前后继续编辑文字</div>
             <div class="diary-media-preview" id="diaryHerMediaPreview"></div>
             <div class="diary-toolbar">
               <button class="btn btn-sm btn-pink diary-img-btn" data-person="her">📷 图片</button>

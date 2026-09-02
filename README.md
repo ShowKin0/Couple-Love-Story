@@ -125,7 +125,7 @@ APP_URL=https://你的域名
 
 ## 原生 Android APK（Java/Android Views）
 
-`android-app/` 是独立的原生 Android 工程，不使用 WebView 或 Capacitor。它通过 HTTPS 调用现有服务的 API，服务器数据和 AI 密钥不会进入 APK。当前原生页面包含：自适应底部导航（聊天和日记详情页自动隐藏）、男女头像与顺序、仅在有内容时显示的未来 10 天纪念日提醒、手动日期时间线、带图片/录音/音频播放器的日记编辑器、解锁后进入的便签式男女日记（支持置顶、详情、编辑和删除）、三列月份相册（全屏预览/缩放/滑动/删除）、微信式三空间聊天（键盘顶端显示最新消息、消息区独立滚动、私密 token 持久化）以及每日恋爱灵感。页面首次打开后会缓存，切换使用淡入动画，新增或删除内容时静默刷新对应页面。首次构建前，将 `android-app/local.properties.example` 复制为 `android-app/local.properties`，填写 `love.api.baseUrl=https://你的域名`，再用 Android Studio 打开 `android-app/`。
+`android-app/` 是独立的原生 Android 工程，不使用 WebView 或 Capacitor。它通过 HTTPS 调用现有服务的 API，服务器数据和 AI 密钥不会进入 APK。当前原生页面包含：自适应底部导航（聊天和日记详情页自动隐藏）、男女头像与顺序、仅在有内容时显示的未来 10 天纪念日提醒（点击可查看详情）、带日期选择器的时间线、标题-正文式日记编辑器（图片按正文块顺序插入，支持录音/音频播放器）、解锁后进入的便签式男女日记（支持置顶、详情、编辑和删除）、三列月份相册（全屏预览/缩放/滑动/删除）、微信式三空间聊天（公开状态高亮、可展开的命名会话列表、键盘顶端显示最新消息）以及每日恋爱灵感。日记和聊天解锁 token 在服务端及 App 本地最多缓存 1 小时。页面首次打开后会缓存，切换使用淡入动画，新增或删除内容时静默刷新对应页面。首次构建前，将 `android-app/local.properties.example` 复制为 `android-app/local.properties`，填写 `love.api.baseUrl=https://你的域名`，再用 Android Studio 打开 `android-app/`。
 
 在 Android Studio 中等待 Gradle 同步完成后，选择 **Build > Build Bundle(s) / APK(s) > Build APK(s)**。调试 APK 位于：
 

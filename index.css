@@ -316,7 +316,11 @@ body {
 
 .diary-form { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
 .diary-date-input { min-height: 42px; }
-.diary-input { resize: vertical; min-height: 80px; }
+.diary-title-input { min-height: 46px; font-weight: 700; font-size: 1.05rem; }
+.diary-input { resize: vertical; min-height: 240px; line-height: 1.7; }
+.diary-inline-hint { color: var(--text-light); font-size: .78rem; margin-top: -4px; }
+.diary-render-title { font-size: 1.06rem; font-weight: 700; margin-bottom: 6px; }
+.diary-render-text { white-space: normal; line-height: 1.65; }
 .diary-list { display: flex; flex-direction: column; gap: 12px; max-height: 500px; overflow-y: auto; }
 .diary-load-error { color: var(--text-light); text-align: center; padding: 18px 12px; border: 1px dashed rgba(220, 91, 120, .35); border-radius: 12px; background: rgba(255, 248, 250, .72); }
 
@@ -429,6 +433,7 @@ body {
 
 /* 编辑模式 */
 .de-edit-area { width: 100%; margin-top: 8px; }
+.de-edit-text { min-height: 280px; line-height: 1.7; }
 .de-edit-area .diary-toolbar { margin: 6px 0; }
 .de-edit-actions { display: flex; gap: 6px; margin-top: 6px; }
 .de-edit-media { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
@@ -643,7 +648,7 @@ body {
   .diary-list { max-height: 350px; }
   .diary-entry { padding: 12px 14px; }
   .diary-form { gap: 8px; }
-  .diary-input { min-height: 70px; }
+  .diary-input { min-height: 240px; }
   .diary-name { font-size: 1.05rem; margin-bottom: 12px; }
 
   .clock-time { font-size: 1.5rem; letter-spacing: 2px; }
@@ -963,7 +968,7 @@ body {
   animation: announcePop 0.6s ease;
   box-shadow: 0 2px 12px rgba(255, 107, 107, 0.2);
 }
-.hero-announce-item .announce-title { color: var(--ink); font-size: .98rem; font-weight: 700; line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hero-announce-item .announce-title { color: var(--ink); font-size: .98rem; font-weight: 700; line-height: 1.35; min-height: 1.35em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hero-announce-item .announce-countdown { margin-top: 5px; font-size: .82rem; color: var(--pink-dark); }
 .hero-announce-item .announce-date { margin-top: 3px; font-size: .72rem; color: var(--text-light); }
 .hero-announce-item.urgent {
@@ -972,6 +977,10 @@ body {
   color: #E04040;
   animation: announcePop 0.6s ease, urgentPulse 1.5s ease-in-out infinite;
 }
+
+.hero-announce-item:focus-visible { outline: 3px solid rgba(220,91,120,.32); outline-offset: 2px; }
+.tl-item.focus-highlight .tl-card { animation: timelineFocus 1.4s ease both; }
+@keyframes timelineFocus { 0%,100% { box-shadow: 0 0 0 0 rgba(220,91,120,0); } 35% { box-shadow: 0 0 0 7px rgba(220,91,120,.20); } }
 
 /* ===== 每日恋爱灵感 ===== */
 .daily-inspiration {

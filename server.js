@@ -71,6 +71,7 @@ function decryptText(pkg, key) {
 
 // ====== Session 管理（内存 + 持久化） ======
 let sessions = readJSON('sessions') || {};
+const SESSION_TTL_MS = 60 * 60 * 1000;
 function saveSessions() { writeJSON('sessions', sessions); }
 function newSession(person, encKeyHex, scope = 'diary') {
   const token = uid() + uid();
@@ -78,7 +79,12 @@ function newSession(person, encKeyHex, scope = 'diary') {
   saveSessions();
   return token;
 }
-function getSession(token) { return sessions[token] || null; }
+function getSession(token) {
+  const session = sessions[token];
+  if (!session) return null;
+  if (Date.now() - Number(session.createdAt || 0) > SESSION_TTL_MS) { delSession(token); return null; }
+  return session;
+}
 function delSession(token) { delete sessions[token]; saveSessions(); }
 function isDiarySession(session, person) {
   return !!session && session.person === person && (session.scope || 'diary') === 'diary';
@@ -88,15 +94,15 @@ function requestToken(req) {
   if (/^Bearer\s+/i.test(auth)) return auth.replace(/^Bearer\s+/i, '').trim();
   return (req.query && req.query.token) || (req.body && req.body.token) || '';
 }
-// 清理过期 session（24小时）
+// 清理过期 session（1小时）
 const sessionCleanupTimer = setInterval(() => {
   const now = Date.now();
   let changed = false;
   for (const [k, v] of Object.entries(sessions)) {
-    if (now - v.createdAt > 86400000) { delete sessions[k]; changed = true; }
+    if (now - v.createdAt > SESSION_TTL_MS) { delete sessions[k]; changed = true; }
   }
   if (changed) saveSessions();
-}, 3600000);
+}, 5 * 60 * 1000);
 sessionCleanupTimer.unref();
 
 // ====== 中间件 ======
@@ -691,6 +697,12 @@ function publicAiError(error) {
 // 删除对话
 app.delete('/api/chat/conversations/:id', (req, res) => {
   let data = readJSON('chat-conversations') || [];
+  const target = data.find(c => c.id === req.params.id);
+  if (!target) return res.status(404).json({ error: 'not found' });
+  if (target.space && target.space !== 'public') {
+    const session = getSession(requestToken(req));
+    if (!isDiarySession(session, target.space)) return res.status(403).json({ error: '无权限' });
+  }
   data = data.filter(c => c.id !== req.params.id);
   writeJSON('chat-conversations', data);
   res.json({ ok: true });
@@ -701,6 +713,10 @@ app.put('/api/chat/conversations/:id', (req, res) => {
   const data = readJSON('chat-conversations') || [];
   const conv = data.find(c => c.id === req.params.id);
   if (!conv) return res.status(404).json({ error: 'not found' });
+  if (conv.space && conv.space !== 'public') {
+    const session = getSession(requestToken(req));
+    if (!isDiarySession(session, conv.space)) return res.status(403).json({ error: '无权限' });
+  }
   const { title } = req.body;
   if (!title || !title.trim()) return res.status(400).json({ error: '标题不能为空' });
   conv.title = title.trim();

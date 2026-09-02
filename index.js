@@ -17,6 +17,8 @@ function $$(s) { return document.querySelectorAll(s); }
 function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 function localTime() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; }
+function localDateInputValue(value = localTime()) { return value.replace(' ', 'T').slice(0, 16); }
+const DIARY_IMAGE_MARKER = '\uFFFC';
 
 // ====== 全局设置 ======
 let appSettings = null;
@@ -235,6 +237,15 @@ function initSettings() {
 
 // ====== 密码系统 ======
 const TOKENS = { his: null, her: null };
+const TOKEN_TTL_MS = 60 * 60 * 1000;
+const TOKEN_TIMERS = { his: null, her: null };
+function cacheDiaryToken(person, token) {
+  TOKENS[person] = token;
+  if (TOKEN_TIMERS[person]) clearTimeout(TOKEN_TIMERS[person]);
+  TOKEN_TIMERS[person] = setTimeout(() => {
+    if (TOKENS[person] === token) { TOKENS[person] = null; handleDiaryAuthExpired(person); }
+  }, TOKEN_TTL_MS);
+}
 
 async function checkStatus(person) {
   try {
@@ -276,7 +287,7 @@ async function setPw(person) {
   if (pwd.length < 4) { alert('密码至少4位'); return; }
   try {
     const d = await api('POST', `/api/diary/${person}/set-password`, { password: pwd });
-    if (d.token) TOKENS[person] = d.token;
+    if (d.token) cacheDiaryToken(person, d.token);
     alert('密码设置成功！');
     checkStatus(person);
   } catch (e) { alert(e.message); }
@@ -288,7 +299,7 @@ async function verifyPw(person) {
   if (!pwd) return;
   try {
     const d = await api('POST', `/api/diary/${person}/verify`, { password: pwd });
-    TOKENS[person] = d.token;
+    cacheDiaryToken(person, d.token);
     unlockDiary(person);
   } catch { alert('密码错误'); }
 }
@@ -301,6 +312,7 @@ function unlockDiary(person) {
 
 function handleDiaryAuthExpired(person) {
   TOKENS[person] = null;
+  if (TOKEN_TIMERS[person]) { clearTimeout(TOKEN_TIMERS[person]); TOKEN_TIMERS[person] = null; }
   const lock = $(`#diary${cap(person)}Lock`);
   const content = $(`#diary${cap(person)}Content`);
   if (lock) lock.classList.remove('unlocked');
@@ -322,6 +334,7 @@ const dialogContainer = document.getElementById('dialogContainer') || (() => {
 })();
 
 function showConfirm(msg) {
+  if (dialogContainer.style.display === 'flex') return Promise.resolve(false);
   return new Promise(resolve => {
     const box = dialogContainer;
     document.getElementById('dt').textContent = '确认';
@@ -336,6 +349,7 @@ function showConfirm(msg) {
 }
 
 function showPrompt(title, placeholder, defaultValue = '') {
+  if (dialogContainer.style.display === 'flex') return Promise.resolve(null);
   return new Promise(resolve => {
     const box = dialogContainer;
     document.getElementById('dt').textContent = title || '请输入';
@@ -354,6 +368,7 @@ function showPrompt(title, placeholder, defaultValue = '') {
 }
 
 function showPasswordPrompt(title, placeholder) {
+  if (dialogContainer.style.display === 'flex') return Promise.resolve(null);
   return new Promise(resolve => {
     const box = dialogContainer;
     document.getElementById('dt').textContent = title || '请输入密码';
@@ -376,11 +391,18 @@ function renderContent(content, entryId) {
   try {
     const data = JSON.parse(content);
     let html = '';
-    if (data.text) html += esc(data.text);
-    if (data.images) data.images.forEach((img, i) => {
-      html += `<span class="media-item" data-eid="${entryId}" data-type="image" data-idx="${i}">`;
-      html += `<img src="${esc(img)}" loading="lazy">`;
-      html += `<button class="media-item-del" title="删除图片">×</button></span>`;
+    if (data.title) html += `<div class="diary-render-title">${esc(data.title)}</div>`;
+    const blocks = Array.isArray(data.blocks) ? data.blocks : [];
+    if (blocks.length) {
+      let imageIndex = 0;
+      blocks.forEach(block => {
+        if (block?.type === 'image' && block.data) {
+          html += `<span class="media-item" data-eid="${entryId}" data-type="image" data-idx="${imageIndex++}"><img src="${esc(block.data)}" loading="lazy"><button class="media-item-del" title="删除图片">×</button></span>`;
+        } else if (block?.type === 'text' && block.value) html += `<div class="diary-render-text">${esc(block.value).replace(/\n/g, '<br>')}</div>`;
+      });
+    } else if (data.text) html += `<div class="diary-render-text">${esc(data.text).replace(/\n/g, '<br>')}</div>`;
+    if (data.images && !blocks.length) data.images.forEach((img, i) => {
+      html += `<span class="media-item" data-eid="${entryId}" data-type="image" data-idx="${i}"><img src="${esc(img)}" loading="lazy"><button class="media-item-del" title="删除图片">×</button></span>`;
     });
     if (data.audio) data.audio.forEach((a, i) => {
       const isObj = typeof a === 'object' && a.data;
@@ -513,16 +535,46 @@ function formatTime(secs) {
 
 // 构建日记内容 JSON
 function buildContent(person) {
-  const text = $(`#diary${cap(person)}Input`).value.trim();
+  const title = $(`#diary${cap(person)}Title`)?.value.trim() || '未命名日记';
+  const input = $(`#diary${cap(person)}Input`);
+  const rawText = input?.value || '';
   const mediaData = diaryMedia[person] || { images: [], audio: [] };
-  if (!text && !mediaData.images.length && !mediaData.audio.length) return null;
-  return JSON.stringify({ text, images: mediaData.images, audio: mediaData.audio });
+  if (!rawText.replaceAll(DIARY_IMAGE_MARKER, '').trim() && !mediaData.images.length && !mediaData.audio.length) return null;
+  const blocks = [];
+  const orderedImages = [];
+  const markerCount = [...rawText].filter(ch => ch === DIARY_IMAGE_MARKER).length;
+  let text = '', chunk = '', imageIndex = 0;
+  for (const ch of rawText) {
+    if (ch !== DIARY_IMAGE_MARKER) { chunk += ch; continue; }
+    if (chunk) { blocks.push({ type: 'text', value: chunk }); text += chunk; chunk = ''; }
+    const data = mediaData.images[imageIndex++];
+    if (data) { blocks.push({ type: 'image', data }); orderedImages.push(data); }
+  }
+  if (chunk) { blocks.push({ type: 'text', value: chunk }); text += chunk; }
+  // 兼容旧版本“图片作为附件”格式；新编辑器只保存正文中实际存在的图片。
+  if (markerCount === 0) mediaData.images.forEach(data => { blocks.push({ type: 'image', data }); orderedImages.push(data); });
+  return JSON.stringify({ title, text: text.trim(), blocks, images: orderedImages, audio: mediaData.audio });
+}
+
+function diaryTextAndImages(data) {
+  const images = [], parts = [];
+  const blocks = Array.isArray(data?.blocks) ? data.blocks : [];
+  if (blocks.length) {
+    blocks.forEach(block => {
+      if (block?.type === 'image' && block.data) { parts.push(DIARY_IMAGE_MARKER); images.push(block.data); }
+      else if (block?.type === 'text') parts.push(block.value || '');
+    });
+  } else {
+    parts.push(data?.text || '');
+    (data?.images || []).forEach(img => { parts.push(DIARY_IMAGE_MARKER); images.push(img); });
+  }
+  return { text: parts.join(''), images };
 }
 
 function diaryDateValue(person) {
   const input = $(`#diary${cap(person)}Date`);
   const value = input ? input.value.trim() : '';
-  return value || localTime();
+  return value ? value.replace('T', ' ') : localTime();
 }
 
 function validDiaryDate(value) {
@@ -532,8 +584,12 @@ function validDiaryDate(value) {
 // 清空日记表单
 function resetDiaryForm(person) {
   const date = $(`#diary${cap(person)}Date`);
-  if (date) date.value = localTime();
-  $(`#diary${cap(person)}Input`).value = '';
+  if (date) date.value = localDateInputValue();
+  const title = $(`#diary${cap(person)}Title`);
+  if (title) title.value = '';
+  const textInput = $(`#diary${cap(person)}Input`);
+  textInput.value = '';
+  textInput.dispatchEvent(new Event('input', { bubbles: true }));
   $(`#diary${cap(person)}MediaPreview`).innerHTML = '';
   diaryMedia[person] = { images: [], audio: [] };
 }
@@ -578,8 +634,18 @@ async function loadDiary(person) {
           const entry = entries.find(en => en.id === eid);
           if (!entry) return;
           const data = JSON.parse(entry.content);
-          if (type === 'image') data.images.splice(idx, 1);
-          else data.audio.splice(idx, 1);
+          if (type === 'image') {
+            data.images = Array.isArray(data.images) ? data.images : [];
+            data.images.splice(idx, 1);
+            if (Array.isArray(data.blocks)) {
+              let imageNo = -1;
+              data.blocks = data.blocks.filter(block => {
+                if (block?.type !== 'image') return true;
+                imageNo++;
+                return imageNo !== idx;
+              });
+            }
+          } else data.audio.splice(idx, 1);
           await api('PUT', `/api/diary/${person}/entries/${eid}`, { token: TOKENS[person], content: JSON.stringify(data), time: entry.time.replace(' ✏️', '') });
           loadDiary(person);
         } catch { alert('删除失败'); }
@@ -607,6 +673,11 @@ function renderEditMedia(editMedia, person, container) {
     div.className = 'media-thumb';
     div.innerHTML = `<img src="${img}"><button class="media-del" data-idx="${i}">×</button>`;
     div.querySelector('.media-del').addEventListener('click', () => {
+      const input = container.closest('.de-edit-area')?.querySelector('.de-edit-text') || $(`#diary${cap(person)}Input`);
+      if (input) {
+        const chars = [...input.value]; let seen = 0;
+        for (let k = 0; k < chars.length; k++) if (chars[k] === DIARY_IMAGE_MARKER) { if (seen++ === i) { input.setRangeText('', k, k + 1, 'end'); break; } }
+      }
       editMedia.images.splice(i, 1);
       renderEditMedia(editMedia, person, container);
     });
@@ -637,12 +708,17 @@ async function editEntry(person, id) {
   const contentEl = entry.querySelector('.de-content');
   const originalHTML = contentEl.innerHTML;
   const origContent = await getEntryContent(person, id);
-  const editMedia = { images: [...(origContent.images || [])], audio: JSON.parse(JSON.stringify(origContent.audio || [])) };
+  const editorData = diaryTextAndImages(origContent);
+  const editMedia = { images: [...editorData.images], audio: JSON.parse(JSON.stringify(origContent.audio || [])) };
+  const legacyTitle = origContent.title || (origContent.text || '').split(/\r?\n/, 1)[0] || '';
+  const legacyText = editorData.text || '';
+  const legacyBody = origContent.title ? legacyText : (legacyText.includes('\n') ? legacyText.split(/\r?\n/).slice(1).join('\n') : legacyText);
 
   contentEl.innerHTML = `
     <div class="de-edit-area">
-      <input type="text" class="input diary-date-input de-edit-date" value="${esc((entry.querySelector('.de-time')?.textContent || localTime()).replace(' ✏️', ''))}" placeholder="日期时间（如 2026-08-31 20:30）" inputmode="numeric">
-      <textarea class="input diary-input de-edit-text" rows="3">${esc(origContent.text || '')}</textarea>
+      <input type="text" class="input diary-title-input de-edit-title" value="${esc(legacyTitle)}" placeholder="标题" maxlength="80">
+      <input type="datetime-local" class="input diary-date-input de-edit-date" value="${esc(localDateInputValue((entry.querySelector('.de-time')?.textContent || localTime()).replace(' ✏️', '')))}" aria-label="日记日期时间">
+      <textarea class="input diary-input de-edit-text" rows="10">${esc(legacyBody)}</textarea>
       <div class="de-edit-media"></div>
       <div class="diary-toolbar">
         <button class="btn btn-sm ${person === 'his' ? 'btn-blue' : 'btn-pink'} de-edit-img">📷 图片</button>
@@ -668,7 +744,14 @@ async function editEntry(person, id) {
   imgInput.addEventListener('change', e => {
     Array.from(e.target.files).forEach(f => {
       const r = new FileReader();
-      r.onload = () => { editMedia.images.push(r.result); renderEditMedia(editMedia, person, mediaContainer); };
+      r.onload = () => {
+        const input = contentEl.querySelector('.de-edit-text');
+        const start = input.selectionStart ?? input.value.length, end = input.selectionEnd ?? start;
+        const markerIndex = [...input.value.slice(0, start)].filter(ch => ch === DIARY_IMAGE_MARKER).length;
+        input.setRangeText(DIARY_IMAGE_MARKER, start, end, 'end');
+        editMedia.images.splice(markerIndex, 0, r.result);
+        renderEditMedia(editMedia, person, mediaContainer);
+      };
       r.readAsDataURL(f);
     });
     e.target.value = '';
@@ -681,8 +764,8 @@ async function editEntry(person, id) {
   recordBtn.addEventListener('click', async () => {
     if (recorder && recorder.state === 'recording') { recorder.stop(); return; }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      recorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm' });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, sampleRate: 48000, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      recorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm', audioBitsPerSecond: 128000 });
       chunks = [];
       recorder.ondataavailable = e => chunks.push(e.data);
       recorder.onstop = () => {
@@ -717,11 +800,25 @@ async function editEntry(person, id) {
 
   // 保存
   contentEl.querySelector('.de-edit-save').addEventListener('click', async () => {
-    const text = contentEl.querySelector('.de-edit-text').value.trim();
-    if (!text && !editMedia.images.length && !editMedia.audio.length) { alert('内容不能为空'); return; }
-    const time = contentEl.querySelector('.de-edit-date').value.trim() || localTime();
+    const title = contentEl.querySelector('.de-edit-title').value.trim() || '未命名日记';
+    const input = contentEl.querySelector('.de-edit-text');
+    const rawText = input.value || '';
+    const text = rawText.replaceAll(DIARY_IMAGE_MARKER, '').trim();
+    const markerCount = [...rawText].filter(ch => ch === DIARY_IMAGE_MARKER).length;
+    if (!text && !markerCount && !editMedia.audio.length) { alert('内容不能为空'); return; }
+    const time = (contentEl.querySelector('.de-edit-date').value.trim() || localDateInputValue()).replace('T', ' ');
     if (!validDiaryDate(time)) { alert('日期格式应为 YYYY-MM-DD HH:mm'); return; }
-    const content = JSON.stringify({ text, images: editMedia.images, audio: editMedia.audio });
+      const blocks = [], orderedImages = [];
+      let chunk = '', plainText = '', imageIndex = 0;
+      for (const ch of rawText) {
+        if (ch !== DIARY_IMAGE_MARKER) { chunk += ch; continue; }
+        if (chunk) { blocks.push({ type: 'text', value: chunk }); plainText += chunk; chunk = ''; }
+        const data = editMedia.images[imageIndex++];
+        if (data) { blocks.push({ type: 'image', data }); orderedImages.push(data); }
+      }
+      if (chunk) { blocks.push({ type: 'text', value: chunk }); plainText += chunk; }
+      if (markerCount === 0) editMedia.images.forEach(data => { blocks.push({ type: 'image', data }); orderedImages.push(data); });
+      const content = JSON.stringify({ title, text: plainText.trim(), blocks, images: orderedImages, audio: editMedia.audio });
     try {
       const d = await api('PUT', `/api/diary/${person}/entries/${id}`, { token: TOKENS[person], content, time });
       contentEl.innerHTML = renderContent(content, id);
@@ -764,6 +861,29 @@ async function addEntry(person) {
 
 // ====== 日记多媒体 ======
 function initDiaryMedia(person) {
+  const textInput = $(`#diary${cap(person)}Input`);
+  let previousDiaryText = textInput?.value || '';
+  const insertImage = data => {
+    if (!textInput || !data) return;
+    const start = Math.max(0, textInput.selectionStart ?? textInput.value.length);
+    const end = Math.max(start, textInput.selectionEnd ?? start);
+    const before = textInput.value.slice(0, start);
+    const markerIndex = [...before].filter(ch => ch === DIARY_IMAGE_MARKER).length;
+    textInput.setRangeText(DIARY_IMAGE_MARKER, start, end, 'end');
+    diaryMedia[person].images.splice(markerIndex, 0, data);
+    renderMediaPreview(person);
+  };
+  textInput?.addEventListener('input', () => {
+    const next = textInput.value || '';
+    const oldMarkers = [...previousDiaryText].reduce((a, ch, i) => ch === DIARY_IMAGE_MARKER ? a.concat(i) : a, []);
+    const newMarkers = [...next].reduce((a, ch, i) => ch === DIARY_IMAGE_MARKER ? a.concat(i) : a, []);
+    if (oldMarkers.length > newMarkers.length) {
+      let removed = 0;
+      for (let i = 0; i < oldMarkers.length; i++) if (newMarkers[i - removed] !== oldMarkers[i]) { removed = 1; diaryMedia[person].images.splice(i, 1); break; }
+      if (!removed && diaryMedia[person].images.length > newMarkers.length) diaryMedia[person].images.splice(newMarkers.length);
+    }
+    previousDiaryText = next;
+  });
   // 图片上传
   const imgInput = $(`#diary${cap(person)}ImgInput`);
   const imgBtn = $(`#diary${cap(person)}Form`).querySelector('.diary-img-btn');
@@ -772,8 +892,7 @@ function initDiaryMedia(person) {
     Array.from(e.target.files).forEach(f => {
       const r = new FileReader();
       r.onload = () => {
-        diaryMedia[person].images.push(r.result);
-        renderMediaPreview(person);
+        insertImage(r.result);
       };
       r.readAsDataURL(f);
     });
@@ -793,8 +912,8 @@ function initDiaryMedia(person) {
       return;
     }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm' });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, sampleRate: 48000, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      mediaRecorder = new MediaRecorder(stream, { mimeType: MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm', audioBitsPerSecond: 128000 });
       audioChunks = [];
       mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
       mediaRecorder.onstop = () => {
@@ -847,7 +966,13 @@ function renderMediaPreview(person) {
     div.className = 'media-thumb';
     div.innerHTML = `<img src="${img}"><button class="media-del" data-type="image" data-idx="${i}">×</button>`;
     div.querySelector('.media-del').addEventListener('click', () => {
-      data.images.splice(i, 1);
+      const input = $(`#diary${cap(person)}Input`);
+      let removedFromText = false;
+      if (input) {
+        const chars = [...input.value]; let seen = 0;
+        for (let k = 0; k < chars.length; k++) if (chars[k] === DIARY_IMAGE_MARKER) { if (seen++ === i) { input.setRangeText('', k, k + 1, 'end'); removedFromText = true; break; } }
+      }
+      if (!removedFromText) data.images.splice(i, 1);
       renderMediaPreview(person);
     });
     preview.appendChild(div);
@@ -912,8 +1037,23 @@ function updateHeroAnnouncements(items) {
   container.innerHTML = upcoming.map(it => {
     const cls = it.days <= 3 ? 'hero-announce-item urgent' : 'hero-announce-item';
     const label = it.days === 0 ? '今天' : it.days + '天后';
-    return `<div class="${cls}" onclick="document.getElementById('timeline').scrollIntoView({behavior:'smooth'})"><span class="announce-title">${esc(it.title)}</span><span class="announce-countdown">${label} · 纪念日快乐</span><span class="announce-date">${esc(it.date)}</span></div>`;
+    return `<div class="${cls}" data-timeline-id="${esc(it.id || '')}" role="button" tabindex="0"><span class="announce-title">${esc(it.title || '纪念日')}</span><span class="announce-countdown">${label} · 纪念日快乐</span><span class="announce-date">${esc(it.date)}</span></div>`;
   }).join('');
+  container.querySelectorAll('[data-timeline-id]').forEach(card => {
+    const focus = () => focusTimeline(card.dataset.timelineId);
+    card.addEventListener('click', focus);
+    card.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); focus(); } });
+  });
+}
+
+function focusTimeline(id) {
+  const target = id ? Array.from(document.querySelectorAll('.tl-item')).find(item => item.dataset.id === id) : null;
+  const section = target || document.getElementById('timeline');
+  section?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  if (target) {
+    target.classList.add('focus-highlight');
+    setTimeout(() => target.classList.remove('focus-highlight'), 1400);
+  }
 }
 
 // 每日内容由服务端按上海时区缓存；页面只读取，不在客户端重复生成。
@@ -973,7 +1113,11 @@ function updateClock() {
 // ====== 导航 ======
 function initNav() {
   $('#navToggle').addEventListener('click', () => $('#navLinks').classList.toggle('open'));
-  $$('[data-nav]').forEach(a => a.addEventListener('click', () => $('#navLinks').classList.remove('open')));
+  $$('[data-nav]').forEach(a => a.addEventListener('click', event => {
+    $('#navLinks').classList.remove('open');
+    const target = document.querySelector(a.getAttribute('href'));
+    if (target && Math.abs(target.getBoundingClientRect().top) < 2) event.preventDefault();
+  }));
   const ss = $$('section[id]'), ns = $$('[data-nav]');
   window.addEventListener('scroll', () => {
     let cur = '';
@@ -997,7 +1141,7 @@ async function renderTimeline() {
       const days = calcDaysUntilNext(item.date);
       const cdText = fmtCountdown(days);
       const urgentCls = days >= 0 && days <= 10 ? ' urgent' : '';
-      return `<div class="tl-item"><div class="tl-dot"></div><div class="tl-card"><div class="tl-date">${item.date}</div><div class="tl-title">${esc(item.title)}</div>${item.desc ? `<div class="tl-desc">${esc(item.desc)}</div>` : ''}${cdText ? `<div class="tl-countdown${urgentCls}">${cdText}</div>` : ''}<button class="tl-del" data-id="${item.id}">🗑</button></div></div>`;
+      return `<div class="tl-item" data-id="${esc(item.id)}"><div class="tl-dot"></div><div class="tl-card"><div class="tl-date">${esc(item.date)}</div><div class="tl-title">${esc(item.title || '纪念日')}</div>${item.desc ? `<div class="tl-desc">${esc(item.desc)}</div>` : ''}${cdText ? `<div class="tl-countdown${urgentCls}">${cdText}</div>` : ''}<button class="tl-del" data-id="${esc(item.id)}">🗑</button></div></div>`;
     }).join('');
     container.querySelectorAll('.tl-del').forEach(b => b.addEventListener('click', async e => {
       e.stopPropagation();
@@ -1060,6 +1204,14 @@ function initPhotos() {
 let curConv = null, chatLoading = false;
 let chatSpace = 'public'; // 'public', 'his', 'her'
 const chatSpaceToken = { his: null, her: null };
+const CHAT_TOKEN_TIMERS = { his: null, her: null };
+function cacheChatToken(space, token) {
+  chatSpaceToken[space] = token;
+  if (CHAT_TOKEN_TIMERS[space]) clearTimeout(CHAT_TOKEN_TIMERS[space]);
+  CHAT_TOKEN_TIMERS[space] = setTimeout(() => {
+    if (chatSpaceToken[space] === token) { chatSpaceToken[space] = null; CHAT_TOKEN_TIMERS[space] = null; if (chatSpace === space) { chatSpace = 'public'; updateSpaceUI(); loadPublicChat(); } }
+  }, TOKEN_TTL_MS);
+}
 const SPACE_NAMES = { public: '公开', his: '男生', her: '女生' };
 
 function chatApiUrl(path) {
@@ -1117,7 +1269,9 @@ async function renameConv(id) {
   const t = await showPrompt('重命名对话', '输入新标题');
   if (!t || !t.trim()) return;
   try {
-    await api('PUT', `/api/chat/conversations/${id}`, { title: t.trim() });
+    const body = { title: t.trim() };
+    if (chatSpace !== 'public') body.token = chatSpaceToken[chatSpace];
+    await api('PUT', `/api/chat/conversations/${id}`, body);
     if (id === curConv) $('#chatTitle').textContent = t.trim();
     loadConvs();
   } catch { alert('重命名失败'); }
@@ -1126,7 +1280,8 @@ async function renameConv(id) {
 async function deleteConv(id) {
   if (!await showConfirm('确定删除此对话？')) return;
   try {
-    await api('DELETE', `/api/chat/conversations/${id}`);
+    const token = chatSpace !== 'public' ? chatSpaceToken[chatSpace] : '';
+    await api('DELETE', `/api/chat/conversations/${id}${token ? `?token=${encodeURIComponent(token)}` : ''}`);
     if (id === curConv) newConv();
     else loadConvs();
   } catch {}
@@ -1208,7 +1363,7 @@ function initChatPwdDialog() {
     if (!pwd) return;
     try {
       const d = await api('POST', `/api/diary/${pendingSpace}/verify`, { password: pwd });
-      chatSpaceToken[pendingSpace] = d.token;
+      cacheChatToken(pendingSpace, d.token);
       $('#chatPwdOverlay').style.display = 'none';
       chatSpace = pendingSpace;
       updateSpaceUI();

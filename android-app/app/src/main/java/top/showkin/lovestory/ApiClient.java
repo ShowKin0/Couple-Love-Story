@@ -14,6 +14,7 @@ import java.nio.charset.StandardCharsets;
 
 public final class ApiClient {
     public interface Callback { void onSuccess(String body); void onError(String message); }
+    private static final long TOKEN_TTL_MS = 60L * 60L * 1000L;
 
     private final SecureStore secureStore;
     private final String baseUrl;
@@ -28,9 +29,15 @@ public final class ApiClient {
     public void put(String path, JSONObject body, Callback callback) { request("PUT", path, body, callback); }
     public void delete(String path, Callback callback) { request("DELETE", path, null, callback); }
 
-    public String token(String person) { return secureStore.get("diary_token_" + person); }
-    public void saveToken(String person, String value) { secureStore.put("diary_token_" + person, value); }
-    public void clearToken(String person) { secureStore.remove("diary_token_" + person); }
+    public String token(String person) {
+        String key = "diary_token_" + person;
+        String expires = secureStore.get(key + ".expires");
+        if (expires == null) { secureStore.remove(key); return null; }
+        try { if (System.currentTimeMillis() >= Long.parseLong(expires)) { clearToken(person); return null; } } catch (Exception e) { clearToken(person); return null; }
+        return secureStore.get(key);
+    }
+    public void saveToken(String person, String value) { String key = "diary_token_" + person; secureStore.put(key, value); secureStore.put(key + ".expires", Long.toString(System.currentTimeMillis() + TOKEN_TTL_MS)); }
+    public void clearToken(String person) { String key = "diary_token_" + person; secureStore.remove(key); secureStore.remove(key + ".expires"); }
     public String siteCookie() { return secureStore.get("site_cookie"); }
 
     private void request(String method, String path, JSONObject body, Callback callback) {
